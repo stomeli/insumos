@@ -10,7 +10,6 @@ function ler(chave) {
 try {
 const dados = localStorage.getItem(chave);
 
-```
 if (!dados) {
   return [];
 }
@@ -18,7 +17,7 @@ if (!dados) {
 const parsed = JSON.parse(dados);
 
 return Array.isArray(parsed) ? parsed : [];
-```
+
 
 } catch (erro) {
 console.error(`Erro ao ler ${chave}:`, erro);

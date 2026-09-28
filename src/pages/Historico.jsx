@@ -28,7 +28,7 @@ nomeLider: "",
 const registrosFiltrados = useMemo(() => {
 const termo = busca.toLowerCase().trim();
 
-```
+
 if (!termo) {
   return registros;
 }
@@ -55,7 +55,6 @@ return registros.filter((registro) => {
       .includes(termo)
   );
 });
-```
 
 }, [registros, busca]);
 
@@ -70,11 +69,11 @@ const registrosPagina = useMemo(() => {
 const inicio =
 (paginaAtual - 1) * ITENS_POR_PAGINA;
 
-```
+
 const fim = inicio + ITENS_POR_PAGINA;
 
 return registrosFiltrados.slice(inicio, fim);
-```
+
 
 }, [registrosFiltrados, paginaAtual]);
 
@@ -89,7 +88,7 @@ idsPagina.every((id) => selecionados.includes(id));
 const abrirEdicao = (registro) => {
 setRegistroEditando(registro);
 
-```
+
 setForm({
   data: registro.data,
   hora: registro.hora,
@@ -103,7 +102,7 @@ setForm({
 });
 
 setModalAberto(true);
-```
+
 
 };
 
@@ -115,19 +114,19 @@ setRegistroEditando(null);
 const handleChange = (event) => {
 const { name, value } = event.target;
 
-```
+
 setForm((prev) => ({
   ...prev,
   [name]: value,
 }));
-```
+
 
 };
 
 const salvarEdicao = (event) => {
 event.preventDefault();
+  
 
-```
 if (!registroEditando) {
   return;
 }
@@ -152,7 +151,7 @@ setRegistros((prev) =>
 );
 
 fecharModal();
-```
+
 
 };
 
@@ -164,10 +163,10 @@ return prev.filter(
 );
 }
 
-```
+
   return [...prev, id];
 });
-```
+
 
 };
 
@@ -177,7 +176,7 @@ setSelecionados((prev) =>
 prev.filter((id) => !idsPagina.includes(id))
 );
 
-```
+
   return;
 }
 
@@ -188,7 +187,7 @@ setSelecionados((prev) => {
 
   return [...prev, ...novos];
 });
-```
+
 
 };
 
@@ -197,9 +196,9 @@ const todosIds = registrosFiltrados.map(
 (registro) => registro.id
 );
 
-```
+
 setSelecionados(todosIds);
-```
+
 
 };
 
@@ -212,7 +211,7 @@ const confirmar = window.confirm(
 "Deseja excluir este registro do histórico?"
 );
 
-```
+
 if (!confirmar) {
   return;
 }
@@ -224,7 +223,7 @@ setRegistros((prev) =>
 setSelecionados((prev) =>
   prev.filter((id) => id !== registro.id)
 );
-```
+
 
 };
 
@@ -233,7 +232,7 @@ if (selecionados.length === 0) {
 return;
 }
 
-```
+
 const confirmar = window.confirm(
   `Deseja excluir ${selecionados.length} registro(s) selecionado(s)?`
 );
@@ -250,7 +249,7 @@ setRegistros((prev) =>
 
 setSelecionados([]);
 setPaginaAtual(1);
-```
+
 
 };
 
@@ -259,7 +258,7 @@ if (registrosFiltrados.length === 0) {
 return;
 }
 
-```
+
 const confirmar = window.confirm(
   `Deseja excluir todos os ${registrosFiltrados.length} registros exibidos?`
 );
@@ -284,7 +283,7 @@ if (busca) {
 
 setSelecionados([]);
 setPaginaAtual(1);
-```
+
 
 };
 
@@ -293,9 +292,9 @@ if (pagina < 1 || pagina > totalPaginas) {
 return;
 }
 
-```
+
 setPaginaAtual(pagina);
-```
+
 
 };
 
@@ -308,7 +307,7 @@ setSelecionados([]);
 return ( <div>
 {/* Cabeçalho */} <div className="page-header"> <div> <h2>Histórico</h2>
 
-```
+
       <p>
         Consulte e gerencie todas as movimentações de
         estoque.

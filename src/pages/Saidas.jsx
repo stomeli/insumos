@@ -1,10 +1,10 @@
 import { useState } from "react";
+import { storage } from "../data/storage";
 
 function Saidas() {
 const agora = new Date();
 
 const dataAtual = agora.toISOString().split("T")[0];
-
 const horaAtual = agora.toTimeString().slice(0, 5);
 
 const [form, setForm] = useState({
@@ -18,22 +18,44 @@ quantidade: "",
 
 const [mensagem, setMensagem] = useState("");
 
+const insumos = storage.getInsumos();
+const lideres = storage.getLideres();
+const colaboradores = storage.getColaboradores();
+
+const itemSelecionado = insumos.find(
+(item) => String(item.id) === String(form.itemId)
+);
+
+const liderSelecionado = lideres.find(
+(lider) => String(lider.id) === String(form.liderId)
+);
+
+const colaboradorSelecionado = colaboradores.find(
+(colaborador) =>
+String(colaborador.id) === String(form.colaboradorId)
+);
+
+const estoqueAtual = Number(
+itemSelecionado?.estoqueAtual ??
+itemSelecionado?.estoqueInicial ??
+0
+);
+
 const handleChange = (event) => {
 const { name, value } = event.target;
 
-```
 setForm((prev) => ({
   ...prev,
   [name]: value,
 }));
-```
+
+setMensagem("");
 
 };
 
 const handleSubmit = (event) => {
 event.preventDefault();
 
-```
 if (
   !form.data ||
   !form.hora ||
@@ -42,21 +64,110 @@ if (
   !form.itemId ||
   !form.quantidade
 ) {
-  setMensagem("Preencha todos os campos obrigatórios.");
+  setMensagem(
+    "Preencha todos os campos obrigatórios."
+  );
   return;
 }
 
+if (!liderSelecionado) {
+  setMensagem(
+    "O ID do líder não foi encontrado no cadastro."
+  );
+  return;
+}
+
+if (!colaboradorSelecionado) {
+  setMensagem(
+    "O ID do colaborador não foi encontrado no cadastro."
+  );
+  return;
+}
+
+if (!itemSelecionado) {
+  setMensagem(
+    "O ID do item não foi encontrado no cadastro."
+  );
+  return;
+}
+
+const quantidade = Number(form.quantidade);
+
+if (quantidade <= 0) {
+  setMensagem(
+    "A quantidade deve ser maior que zero."
+  );
+  return;
+}
+
+if (quantidade > estoqueAtual) {
+  setMensagem(
+    `Estoque insuficiente. Estoque atual: ${estoqueAtual}.`
+  );
+  return;
+}
+
+const saidas = storage.getSaidas();
+
+const novaSaida = {
+  id: Date.now().toString(),
+  data: form.data,
+  hora: form.hora,
+  liderId: form.liderId,
+  liderNome: liderSelecionado.nome,
+  colaboradorId: form.colaboradorId,
+  colaboradorNome: colaboradorSelecionado.nome,
+  itemId: form.itemId,
+  descricao: itemSelecionado.descricao,
+  quantidade,
+  criadoEm: new Date().toISOString(),
+};
+
+storage.saveSaidas([
+  ...saidas,
+  novaSaida,
+]);
+
+const insumosAtualizados = insumos.map((item) => {
+  if (String(item.id) !== String(form.itemId)) {
+    return item;
+  }
+
+  const estoque =
+    Number(item.estoqueAtual ?? item.estoqueInicial ?? 0);
+
+  const totalSaidas =
+    Number(item.totalSaidas ?? 0) + quantidade;
+
+  return {
+    ...item,
+    totalSaidas,
+    estoqueAtual: estoque - quantidade,
+  };
+});
+
+storage.saveInsumos(insumosAtualizados);
+
 setMensagem(
-  "Saída preenchida. A gravação no banco será configurada na próxima etapa."
+  "Saída registrada com sucesso."
 );
-```
+
+const agoraAtualizado = new Date();
+
+setForm({
+  data: agoraAtualizado.toISOString().split("T")[0],
+  hora: agoraAtualizado.toTimeString().slice(0, 5),
+  liderId: "",
+  colaboradorId: "",
+  itemId: "",
+  quantidade: "",
+});
 
 };
 
 const limparFormulario = () => {
 const agoraAtualizado = new Date();
 
-```
 setForm({
   data: agoraAtualizado.toISOString().split("T")[0],
   hora: agoraAtualizado.toTimeString().slice(0, 5),
@@ -67,13 +178,15 @@ setForm({
 });
 
 setMensagem("");
-```
 
 };
 
-return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
+return (
+<div>
+<div className="page-header">
+<div>
+<h2>Saída de insumos</h2>
 
-```
       <p>
         Registre a retirada de materiais do estoque.
       </p>
@@ -94,9 +207,11 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
     <div className="card-body">
       <form onSubmit={handleSubmit}>
         <div className="form-grid">
-          {/* Data */}
           <div className="form-group">
-            <label className="form-label" htmlFor="data">
+            <label
+              className="form-label"
+              htmlFor="data"
+            >
               Data *
             </label>
 
@@ -111,9 +226,11 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
             />
           </div>
 
-          {/* Hora */}
           <div className="form-group">
-            <label className="form-label" htmlFor="hora">
+            <label
+              className="form-label"
+              htmlFor="hora"
+            >
               Hora *
             </label>
 
@@ -128,9 +245,11 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
             />
           </div>
 
-          {/* ID do líder */}
           <div className="form-group">
-            <label className="form-label" htmlFor="liderId">
+            <label
+              className="form-label"
+              htmlFor="liderId"
+            >
               ID do líder *
             </label>
 
@@ -139,14 +258,13 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
               name="liderId"
               type="text"
               className="form-control"
-              placeholder="Digite ou selecione o líder"
+              placeholder="Digite o ID do líder"
               value={form.liderId}
               onChange={handleChange}
               required
             />
           </div>
 
-          {/* Nome do líder */}
           <div className="form-group">
             <label className="form-label">
               Nome do líder
@@ -155,13 +273,12 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
             <input
               type="text"
               className="form-control"
-              value=""
-              placeholder="Preenchido automaticamente pelo cadastro"
+              value={liderSelecionado?.nome || ""}
+              placeholder="Nome automático"
               readOnly
             />
           </div>
 
-          {/* Colaborador */}
           <div className="form-group">
             <label
               className="form-label"
@@ -175,14 +292,13 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
               name="colaboradorId"
               type="text"
               className="form-control"
-              placeholder="Digite ou selecione o colaborador"
+              placeholder="Digite o ID do colaborador"
               value={form.colaboradorId}
               onChange={handleChange}
               required
             />
           </div>
 
-          {/* Nome do colaborador */}
           <div className="form-group">
             <label className="form-label">
               Nome do colaborador
@@ -191,15 +307,19 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
             <input
               type="text"
               className="form-control"
-              value=""
-              placeholder="Preenchido automaticamente pelo cadastro"
+              value={
+                colaboradorSelecionado?.nome || ""
+              }
+              placeholder="Nome automático"
               readOnly
             />
           </div>
 
-          {/* ID do item */}
           <div className="form-group">
-            <label className="form-label" htmlFor="itemId">
+            <label
+              className="form-label"
+              htmlFor="itemId"
+            >
               ID do item *
             </label>
 
@@ -208,14 +328,13 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
               name="itemId"
               type="text"
               className="form-control"
-              placeholder="Digite ou selecione o item"
+              placeholder="Digite o ID do item"
               value={form.itemId}
               onChange={handleChange}
               required
             />
           </div>
 
-          {/* Descrição */}
           <div className="form-group">
             <label className="form-label">
               Descrição do item
@@ -224,15 +343,19 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
             <input
               type="text"
               className="form-control"
-              value=""
-              placeholder="Preenchida automaticamente pelo cadastro"
+              value={
+                itemSelecionado?.descricao || ""
+              }
+              placeholder="Descrição automática"
               readOnly
             />
           </div>
 
-          {/* Quantidade */}
           <div className="form-group">
-            <label className="form-label" htmlFor="quantidade">
+            <label
+              className="form-label"
+              htmlFor="quantidade"
+            >
               Quantidade *
             </label>
 
@@ -243,18 +366,33 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
               min="1"
               step="1"
               className="form-control"
-              placeholder="Informe a quantidade retirada"
+              placeholder="Informe a quantidade"
               value={form.quantidade}
               onChange={handleChange}
               required
             />
           </div>
+
+          {itemSelecionado && (
+            <div className="form-group">
+              <label className="form-label">
+                Estoque disponível
+              </label>
+
+              <input
+                type="text"
+                className="form-control"
+                value={estoqueAtual}
+                readOnly
+              />
+            </div>
+          )}
         </div>
 
         {mensagem && (
           <div
             className={
-              mensagem.includes("preenchida")
+              mensagem.includes("sucesso")
                 ? "alert alert-success"
                 : "alert alert-warning"
             }
@@ -284,7 +422,6 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
     </div>
   </div>
 
-  {/* Informação sobre a saída */}
   <div
     className="card"
     style={{ marginTop: "18px" }}
@@ -297,26 +434,25 @@ return ( <div> <div className="page-header"> <div> <h2>Saída de insumos</h2>
           <strong>Controle de estoque</strong>
 
           <p style={{ marginTop: "4px" }}>
-            Antes de registrar a saída, o sistema verificará
-            o estoque disponível do item.
+            O sistema verifica o estoque disponível
+            antes de registrar a retirada.
           </p>
 
           <p style={{ marginTop: "5px" }}>
-            A descrição do item, o nome do colaborador e o
-            nome do líder serão preenchidos automaticamente
-            através dos respectivos cadastros.
+            A descrição do item, o nome do colaborador
+            e o nome do líder são preenchidos
+            automaticamente pelos cadastros.
           </p>
 
           <p style={{ marginTop: "5px" }}>
-            Não será permitido retirar uma quantidade maior
-            que o estoque disponível.
+            Não é permitido retirar uma quantidade
+            maior que o estoque disponível.
           </p>
         </div>
       </div>
     </div>
   </div>
 </div>
-```
 
 );
 }

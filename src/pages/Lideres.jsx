@@ -122,9 +122,9 @@ fecharModal();
 };
 
 const excluirLider = (lider) => {
-const confirmar = window.confirm(
-Deseja excluir o líder "${lider.nome}"?
-);
+  const confirmar = window.confirm(
+    `Deseja excluir o líder "${lider.nome}"?`
+  );
 
 if (!confirmar) {
   return;

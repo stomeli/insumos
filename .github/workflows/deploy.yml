@@ -23,27 +23,16 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install dependencies
+      - name: Install
         run: npm install
 
-      - name: Show files
-        run: |
-          echo "Arquivos da raiz:"
-          ls -la
-          echo "Arquivos src:"
-          find src -maxdepth 3 -type f | sort
+      - name: Build
+        run: npm run build
 
-     - name: Build
-  run: |
-    echo "=== PACKAGE.JSON ==="
-    cat package.json
-    echo "=== BUILD ==="
-    npm run build
-
-      - name: Setup Pages
+      - name: Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload artifact
+      - name: Upload
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist

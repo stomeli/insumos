@@ -1,7 +1,12 @@
 
 import { useState } from "react";
 
-import Dashboard from "./pages/Dashboard";
+const paginas = {
+  dashboard: {
+    titulo: "Dashboard",
+    componente: Dashboard,
+  },
+};
 import Entradas from "./pages/Entradas";
 import Saidas from "./pages/Saidas";
 import Insumos from "./pages/Insumos";

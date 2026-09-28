@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "../supabase"; // Certifique-se de ajustar o caminho da sua instância do Supabase
+import { supabase } from "../supabase.js"; // Certifique-se de ajustar o caminho da sua instância do Supabase
 
 function Saidas() {
   const agora = new Date();

@@ -1,71 +1,111 @@
 const STORAGE_KEYS = {
-  insumos: "controle_estoque_insumos",
-  colaboradores: "controle_estoque_colaboradores",
-  lideres: "controle_estoque_lideres",
-  entradas: "controle_estoque_entradas",
-  saidas: "controle_estoque_saidas",
+insumos: "controle_estoque_insumos",
+colaboradores: "controle_estoque_colaboradores",
+lideres: "controle_estoque_lideres",
+entradas: "controle_estoque_entradas",
+saidas: "controle_estoque_saidas",
 };
 
 function ler(chave) {
-  try {
-    const dados = localStorage.getItem(chave);
-    return dados ? JSON.parse(dados) : [];
-  } catch (erro) {
-    console.error(`Erro ao ler ${chave}:`, erro);
-    return [];
-  }
+try {
+const dados = localStorage.getItem(chave);
+
+```
+if (!dados) {
+  return [];
+}
+
+const parsed = JSON.parse(dados);
+
+return Array.isArray(parsed) ? parsed : [];
+```
+
+} catch (erro) {
+console.error(`Erro ao ler ${chave}:`, erro);
+return [];
+}
 }
 
 function salvar(chave, dados) {
-  localStorage.setItem(chave, JSON.stringify(dados));
+try {
+localStorage.setItem(chave, JSON.stringify(dados));
+return true;
+} catch (erro) {
+console.error(`Erro ao salvar ${chave}:`, erro);
+return false;
+}
 }
 
 export const storage = {
-  getInsumos() {
-    return ler(STORAGE_KEYS.insumos);
-  },
+// =========================
+// INSUMOS
+// =========================
 
-  saveInsumos(dados) {
-    salvar(STORAGE_KEYS.insumos, dados);
-  },
+getInsumos() {
+return ler(STORAGE_KEYS.insumos);
+},
 
-  getColaboradores() {
-    return ler(STORAGE_KEYS.colaboradores);
-  },
+saveInsumos(dados) {
+return salvar(STORAGE_KEYS.insumos, dados);
+},
 
-  saveColaboradores(dados) {
-    salvar(STORAGE_KEYS.colaboradores, dados);
-  },
+// =========================
+// COLABORADORES
+// =========================
 
-  getLideres() {
-    return ler(STORAGE_KEYS.lideres);
-  },
+getColaboradores() {
+return ler(STORAGE_KEYS.colaboradores);
+},
 
-  saveLideres(dados) {
-    salvar(STORAGE_KEYS.lideres, dados);
-  },
+saveColaboradores(dados) {
+return salvar(STORAGE_KEYS.colaboradores, dados);
+},
 
-  getEntradas() {
-    return ler(STORAGE_KEYS.entradas);
-  },
+// =========================
+// LÍDERES
+// =========================
 
-  saveEntradas(dados) {
-    salvar(STORAGE_KEYS.entradas, dados);
-  },
+getLideres() {
+return ler(STORAGE_KEYS.lideres);
+},
 
-  getSaidas() {
-    return ler(STORAGE_KEYS.saidas);
-  },
+saveLideres(dados) {
+return salvar(STORAGE_KEYS.lideres, dados);
+},
 
-  saveSaidas(dados) {
-    salvar(STORAGE_KEYS.saidas, dados);
-  },
+// =========================
+// ENTRADAS
+// =========================
 
-  limparTudo() {
-    Object.values(STORAGE_KEYS).forEach((chave) => {
-      localStorage.removeItem(chave);
-    });
-  },
+getEntradas() {
+return ler(STORAGE_KEYS.entradas);
+},
+
+saveEntradas(dados) {
+return salvar(STORAGE_KEYS.entradas, dados);
+},
+
+// =========================
+// SAÍDAS
+// =========================
+
+getSaidas() {
+return ler(STORAGE_KEYS.saidas);
+},
+
+saveSaidas(dados) {
+return salvar(STORAGE_KEYS.saidas, dados);
+},
+
+// =========================
+// LIMPAR DADOS
+// =========================
+
+limparTudo() {
+Object.values(STORAGE_KEYS).forEach((chave) => {
+localStorage.removeItem(chave);
+});
+},
 };
 
 export { STORAGE_KEYS };

@@ -1,4 +1,4 @@
-:::writing{variant="document" id="48261" title="src/App.jsx — corrigido"}
+
 import { useState } from "react";
 
 import Dashboard from "./pages/Dashboard";

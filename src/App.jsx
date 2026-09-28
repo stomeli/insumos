@@ -179,7 +179,7 @@ function App() {
           <span>Sistema de Controle de Estoque</span>
 
           <span>
-            Todos os dados serão centralizados no banco compartilhado.
+           
           </span>
         </footer>
       </div>

@@ -1,6 +1,4 @@
 
-import { useState } from "react";
-
 const paginas = {
   dashboard: {
     titulo: "Dashboard",

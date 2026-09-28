@@ -116,8 +116,11 @@ function App() {
           <div className="logo">
 
             <div className="logo-icon">
-              ML
-            </div>
+  <img
+    src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/mercado-libre/default.svg"
+    alt="Mercado Livre"
+  />
+</div>
 
             <div>
               <strong>Controle</strong>

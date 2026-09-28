@@ -1,4 +1,4 @@
-```yaml
+
 name: Deploy
 
 on:
@@ -43,4 +43,3 @@ jobs:
 
       - name: Deploy
         uses: actions/deploy-pages@v4
-```

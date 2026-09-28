@@ -199,7 +199,7 @@ function Colaboradores() {
     <div>
       <div className="page-header">
         <div>
-          <h2>Colaboradores</h2>
+        
           <p>
             Cadastre os colaboradores que poderão retirar insumos do estoque.
           </p>

@@ -16,29 +16,29 @@ runs-on: ubuntu-latest
 
 ```
 steps:
-  - name: Baixar código
+  - name: Checkout
     uses: actions/checkout@v4
 
-  - name: Configurar Node
+  - name: Setup Node
     uses: actions/setup-node@v4
     with:
       node-version: 20
       cache: npm
 
-  - name: Instalar dependências
+  - name: Install dependencies
     run: npm install
 
-  - name: Criar aplicação
+  - name: Build
     run: npm run build
 
-  - name: Configurar GitHub Pages
+  - name: Setup Pages
     uses: actions/configure-pages@v5
 
-  - name: Preparar arquivos
+  - name: Upload artifact
     uses: actions/upload-pages-artifact@v3
     with:
       path: ./dist
 
-  - name: Publicar
+  - name: Deploy
     uses: actions/deploy-pages@v4
 ```

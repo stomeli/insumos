@@ -12,7 +12,7 @@ function App() {
     >
       <div
         style={{
-          background: "#FFFFFF",
+          background: "#fff",
           padding: "40px",
           borderRadius: "16px",
           textAlign: "center",
@@ -20,7 +20,7 @@ function App() {
         }}
       >
         <h1>Controle de Estoque</h1>
-        <p>React está funcionando corretamente.</p>
+        <p>React está funcionando.</p>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { storage } from "../data/storage";
 
 function Entradas() {
 const [form, setForm] = useState({
@@ -10,36 +11,108 @@ liderId: "",
 
 const [mensagem, setMensagem] = useState("");
 
+const insumos = storage.getInsumos();
+const lideres = storage.getLideres();
+
+const itemSelecionado = insumos.find(
+(item) => String(item.id) === String(form.itemId)
+);
+
+const liderSelecionado = lideres.find(
+(lider) => String(lider.id) === String(form.liderId)
+);
+
 const handleChange = (event) => {
 const { name, value } = event.target;
 
-```
 setForm((prev) => ({
   ...prev,
   [name]: value,
 }));
-```
+
+setMensagem("");
 
 };
 
 const handleSubmit = (event) => {
 event.preventDefault();
 
-```
 if (
   !form.data ||
   !form.itemId ||
   !form.quantidade ||
   !form.liderId
 ) {
-  setMensagem("Preencha todos os campos obrigatórios.");
+  setMensagem(
+    "Preencha todos os campos obrigatórios."
+  );
   return;
 }
 
+if (!itemSelecionado) {
+  setMensagem(
+    "O ID do item não foi encontrado no cadastro."
+  );
+  return;
+}
+
+if (!liderSelecionado) {
+  setMensagem(
+    "O ID do líder não foi encontrado no cadastro."
+  );
+  return;
+}
+
+const quantidade = Number(form.quantidade);
+
+const entradas = storage.getEntradas();
+
+const novaEntrada = {
+  id: Date.now().toString(),
+  data: form.data,
+  itemId: form.itemId,
+  descricao: itemSelecionado.descricao,
+  quantidade,
+  liderId: form.liderId,
+  liderNome: liderSelecionado.nome,
+  criadoEm: new Date().toISOString(),
+};
+
+storage.saveEntradas([
+  ...entradas,
+  novaEntrada,
+]);
+
+const insumosAtualizados = insumos.map((item) => {
+  if (String(item.id) !== String(form.itemId)) {
+    return item;
+  }
+
+  const estoqueAtual =
+    Number(item.estoqueAtual ?? item.estoqueInicial ?? 0);
+
+  const totalEntradas =
+    Number(item.totalEntradas ?? 0) + quantidade;
+
+  return {
+    ...item,
+    totalEntradas,
+    estoqueAtual: estoqueAtual + quantidade,
+  };
+});
+
+storage.saveInsumos(insumosAtualizados);
+
 setMensagem(
-  "Entrada preenchida. A gravação no banco será configurada na próxima etapa."
+  "Entrada registrada com sucesso."
 );
-```
+
+setForm({
+  data: new Date().toISOString().split("T")[0],
+  itemId: "",
+  quantidade: "",
+  liderId: "",
+});
 
 };
 
@@ -51,15 +124,16 @@ quantidade: "",
 liderId: "",
 });
 
-```
 setMensagem("");
-```
 
 };
 
-return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
+return (
+<div>
+<div className="page-header">
+<div>
+<h2>Entrada de insumos</h2>
 
-```
       <p>
         Registre a entrada de materiais no estoque.
       </p>
@@ -80,9 +154,11 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
     <div className="card-body">
       <form onSubmit={handleSubmit}>
         <div className="form-grid">
-          {/* Data */}
           <div className="form-group">
-            <label className="form-label" htmlFor="data">
+            <label
+              className="form-label"
+              htmlFor="data"
+            >
               Data *
             </label>
 
@@ -97,9 +173,11 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
             />
           </div>
 
-          {/* ID do item */}
           <div className="form-group">
-            <label className="form-label" htmlFor="itemId">
+            <label
+              className="form-label"
+              htmlFor="itemId"
+            >
               ID do item *
             </label>
 
@@ -115,7 +193,6 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
             />
           </div>
 
-          {/* Descrição */}
           <div className="form-group">
             <label className="form-label">
               Descrição
@@ -124,15 +201,19 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
             <input
               type="text"
               className="form-control"
-              value=""
-              placeholder="Será preenchida automaticamente pelo ID"
+              value={
+                itemSelecionado?.descricao || ""
+              }
+              placeholder="Descrição automática"
               readOnly
             />
           </div>
 
-          {/* Quantidade */}
           <div className="form-group">
-            <label className="form-label" htmlFor="quantidade">
+            <label
+              className="form-label"
+              htmlFor="quantidade"
+            >
               Quantidade *
             </label>
 
@@ -150,9 +231,11 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
             />
           </div>
 
-          {/* Líder */}
           <div className="form-group">
-            <label className="form-label" htmlFor="liderId">
+            <label
+              className="form-label"
+              htmlFor="liderId"
+            >
               ID do líder *
             </label>
 
@@ -168,7 +251,6 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
             />
           </div>
 
-          {/* Nome do líder */}
           <div className="form-group">
             <label className="form-label">
               Nome do líder
@@ -177,8 +259,8 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
             <input
               type="text"
               className="form-control"
-              value=""
-              placeholder="Será preenchido automaticamente"
+              value={liderSelecionado?.nome || ""}
+              placeholder="Nome automático"
               readOnly
             />
           </div>
@@ -187,7 +269,7 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
         {mensagem && (
           <div
             className={
-              mensagem.includes("preenchida")
+              mensagem.includes("sucesso")
                 ? "alert alert-success"
                 : "alert alert-warning"
             }
@@ -217,7 +299,6 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
     </div>
   </div>
 
-  {/* Orientação */}
   <div
     className="card"
     style={{ marginTop: "18px" }}
@@ -227,24 +308,23 @@ return ( <div> <div className="page-header"> <div> <h2>Entrada de insumos</h2>
         <span>💡</span>
 
         <div>
-          <strong>Como funcionará</strong>
+          <strong>Como funciona</strong>
 
           <p style={{ marginTop: "4px" }}>
-            Ao informar o ID do item, o sistema buscará
-            automaticamente a descrição cadastrada. O mesmo
-            acontecerá com o ID do líder.
+            Informe o ID do item e o sistema buscará
+            automaticamente a descrição cadastrada.
           </p>
 
           <p style={{ marginTop: "5px" }}>
-            Ao registrar a entrada, a quantidade será
-            adicionada ao estoque atual do item.
+            O mesmo acontece com o ID do líder.
+            Ao registrar a entrada, a quantidade é
+            adicionada ao estoque atual.
           </p>
         </div>
       </div>
     </div>
   </div>
 </div>
-```
 
 );
 }

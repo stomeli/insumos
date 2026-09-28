@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 
 import Dashboard from "./pages/Dashboard";
@@ -52,20 +53,50 @@ function App() {
   };
 
   const menuPrincipal = [
-    { id: "dashboard", nome: "Dashboard", icone: "▦" },
-    { id: "entradas", nome: "Entrada", icone: "↓" },
-    { id: "saidas", nome: "Saída", icone: "↑" },
-    { id: "historico", nome: "Histórico", icone: "◷" },
+    {
+      id: "dashboard",
+      nome: "Dashboard",
+      icone: "▦",
+    },
+    {
+      id: "entradas",
+      nome: "Entrada",
+      icone: "↓",
+    },
+    {
+      id: "saidas",
+      nome: "Saída",
+      icone: "↑",
+    },
+    {
+      id: "historico",
+      nome: "Histórico",
+      icone: "◷",
+    },
   ];
 
   const menuCadastros = [
-    { id: "insumos", nome: "Insumos", icone: "▣" },
-    { id: "colaboradores", nome: "Colaboradores", icone: "♙" },
-    { id: "lideres", nome: "Líderes", icone: "♟" },
+    {
+      id: "insumos",
+      nome: "Insumos",
+      icone: "▣",
+    },
+    {
+      id: "colaboradores",
+      nome: "Colaboradores",
+      icone: "♙",
+    },
+    {
+      id: "lideres",
+      nome: "Líderes",
+      icone: "♟",
+    },
   ];
 
   return (
     <div className="app">
+
+      {/* OVERLAY MOBILE */}
       {menuAberto && (
         <div
           className="sidebar-overlay"
@@ -73,116 +104,139 @@ function App() {
         />
       )}
 
-      <aside className={`sidebar ${menuAberto ? "sidebar-open" : ""}`}>
-        <div className="sidebar-logo">
-          <div className="logo-mark">ML</div>
+      {/* SIDEBAR */}
+      <aside
+        className={`sidebar ${
+          menuAberto ? "sidebar-open" : ""
+        }`}
+      >
 
-          <div>
-            <div className="logo-title">Controle</div>
-            <div className="logo-subtitle">de Estoque</div>
+        {/* CABEÇALHO DA SIDEBAR */}
+        <div className="sidebar-header">
+
+          <div className="logo">
+
+            <div className="logo-icon">
+              ML
+            </div>
+
+            <div>
+              <strong>Controle</strong>
+              <span>de Estoque</span>
+            </div>
+
           </div>
 
           <button
-            className="sidebar-close"
+            className="close-sidebar"
             onClick={() => setMenuAberto(false)}
             aria-label="Fechar menu"
           >
             ×
           </button>
+
         </div>
 
-        <nav className="sidebar-nav">
-          <div className="nav-section">
-            <div className="nav-section-title">PRINCIPAL</div>
+        {/* MENU */}
+        <nav className="sidebar-menu">
 
-            {menuPrincipal.map((item) => (
-              <button
-                key={item.id}
-                className={`nav-item ${
-                  paginaAtual === item.id ? "active" : ""
-                }`}
-                onClick={() => navegar(item.id)}
-              >
-                <span className="nav-icon">{item.icone}</span>
-                <span>{item.nome}</span>
-              </button>
-            ))}
+          {/* PRINCIPAL */}
+          <div className="menu-title">
+            PRINCIPAL
           </div>
 
-          <div className="nav-section">
-            <div className="nav-section-title">CADASTROS</div>
+          {menuPrincipal.map((item) => (
+            <button
+              key={item.id}
+              className={`menu-item ${
+                paginaAtual === item.id ? "active" : ""
+              }`}
+              onClick={() => navegar(item.id)}
+            >
+              <span className="menu-icon">
+                {item.icone}
+              </span>
 
-            {menuCadastros.map((item) => (
-              <button
-                key={item.id}
-                className={`nav-item ${
-                  paginaAtual === item.id ? "active" : ""
-                }`}
-                onClick={() => navegar(item.id)}
-              >
-                <span className="nav-icon">{item.icone}</span>
-                <span>{item.nome}</span>
-              </button>
-            ))}
+              <span>
+                {item.nome}
+              </span>
+            </button>
+          ))}
+
+          {/* CADASTROS */}
+          <div
+            className="menu-title"
+            style={{ marginTop: "22px" }}
+          >
+            CADASTROS
           </div>
+
+          {menuCadastros.map((item) => (
+            <button
+              key={item.id}
+              className={`menu-item ${
+                paginaAtual === item.id ? "active" : ""
+              }`}
+              onClick={() => navegar(item.id)}
+            >
+              <span className="menu-icon">
+                {item.icone}
+              </span>
+
+              <span>
+                {item.nome}
+              </span>
+            </button>
+          ))}
+
         </nav>
 
-        <div className="sidebar-footer">
-          <div className="system-status">
-            <span className="status-dot" />
-
-            <div>
-              <strong>Sistema online</strong>
-              <small>Controle de estoque</small>
-            </div>
-          </div>
-        </div>
       </aside>
 
+      {/* ÁREA PRINCIPAL */}
       <div className="main-area">
+
+        {/* TOPBAR */}
         <header className="topbar">
-          <div className="topbar-left">
-            <button
-              className="menu-button"
-              onClick={() => setMenuAberto(true)}
-              aria-label="Abrir menu"
-            >
-              ☰
-            </button>
 
-            <div>
-              <h1>{pagina.titulo}</h1>
+          <button
+            className="menu-toggle"
+            onClick={() => setMenuAberto(true)}
+            aria-label="Abrir menu"
+          >
+            ☰
+          </button>
 
-              <span className="topbar-breadcrumb">
-                Controle de estoque
-              </span>
-            </div>
+          <div className="page-heading">
+
+            <span className="company-label">
+              CONTROLE DE ESTOQUE
+            </span>
+
+            <h1>
+              {pagina.titulo}
+            </h1>
+
           </div>
 
           <div className="topbar-right">
-            <div className="user-info">
-              <div className="user-avatar">ML</div>
 
-              <div className="user-details">
-                <strong>Controle de Estoque</strong>
-                <span>Acesso autorizado</span>
-              </div>
+            <div className="online-indicator">
+              <span></span>
+              Online
             </div>
+
           </div>
+
         </header>
 
+        {/* CONTEÚDO */}
         <main className="content">
           <PaginaAtual />
         </main>
 
-        <footer className="app-footer">
-          <span>Sistema de Controle de Estoque</span>
-
-          <span>
-           
-          </span>
-        </footer>
       </div>
+
     </div>
   );
 }

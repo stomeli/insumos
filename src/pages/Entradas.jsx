@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "../supabase"; // Ajuste o caminho do seu cliente Supabase
+import { supabase } from "../supabase.js"; // Ajuste o caminho do seu cliente Supabase
 
 function Entradas() {
   const [form, setForm] = useState({

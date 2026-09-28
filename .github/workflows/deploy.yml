@@ -33,8 +33,12 @@ jobs:
           echo "Arquivos src:"
           find src -maxdepth 3 -type f | sort
 
-      - name: Build
-        run: npm run build
+     - name: Build
+  run: |
+    echo "=== PACKAGE.JSON ==="
+    cat package.json
+    echo "=== BUILD ==="
+    npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

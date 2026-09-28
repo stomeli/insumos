@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
+import { storage } from "../data/storage";
 
 const ITENS_POR_PAGINA = 40;
 
 function Insumos() {
-const [itens, setItens] = useState([]);
-const [busca, setBusca] = useState("");
+const [itens, setItens] = useState(() =>
+storage.getInsumos()
+);
 
+const [busca, setBusca] = useState("");
 const [paginaAtual, setPaginaAtual] = useState(1);
 
 const [modalAberto, setModalAberto] = useState(false);
@@ -20,42 +23,51 @@ estoqueInicial: "",
 const itensFiltrados = useMemo(() => {
 const termo = busca.toLowerCase().trim();
 
-```
 if (!termo) {
   return itens;
 }
 
 return itens.filter((item) => {
   return (
-    item.id.toLowerCase().includes(termo) ||
-    item.descricao.toLowerCase().includes(termo)
+    String(item.id)
+      .toLowerCase()
+      .includes(termo) ||
+    String(item.descricao)
+      .toLowerCase()
+      .includes(termo)
   );
 });
-```
 
 }, [itens, busca]);
 
 const totalPaginas = Math.max(
 1,
-Math.ceil(itensFiltrados.length / ITENS_POR_PAGINA)
+Math.ceil(
+itensFiltrados.length / ITENS_POR_PAGINA
+)
+);
+
+const paginaCorrigida = Math.min(
+paginaAtual,
+totalPaginas
 );
 
 const itensPagina = useMemo(() => {
 const inicio =
-(paginaAtual - 1) * ITENS_POR_PAGINA;
+(paginaCorrigida - 1) * ITENS_POR_PAGINA;
 
-```
 const fim = inicio + ITENS_POR_PAGINA;
 
 return itensFiltrados.slice(inicio, fim);
-```
 
-}, [itensFiltrados, paginaAtual]);
+}, [
+itensFiltrados,
+paginaCorrigida,
+]);
 
 const abrirNovoItem = () => {
 setItemEditando(null);
 
-```
 setForm({
   id: "",
   descricao: "",
@@ -63,22 +75,19 @@ setForm({
 });
 
 setModalAberto(true);
-```
 
 };
 
 const abrirEdicao = (item) => {
 setItemEditando(item);
 
-```
 setForm({
   id: item.id,
   descricao: item.descricao,
-  estoqueInicial: item.estoqueInicial,
+  estoqueInicial: item.estoqueInicial ?? 0,
 });
 
 setModalAberto(true);
-```
 
 };
 
@@ -90,100 +99,134 @@ setItemEditando(null);
 const handleChange = (event) => {
 const { name, value } = event.target;
 
-```
 setForm((prev) => ({
   ...prev,
   [name]: value,
 }));
-```
 
 };
 
 const salvarItem = (event) => {
 event.preventDefault();
 
-```
 const id = form.id.trim();
 const descricao = form.descricao.trim();
-const estoqueInicial = Number(form.estoqueInicial);
+const estoqueInicial = Number(
+  form.estoqueInicial
+);
 
-if (!id || !descricao || Number.isNaN(estoqueInicial)) {
+if (!id || !descricao) {
+  alert("Preencha todos os campos obrigatórios.");
   return;
 }
 
+if (
+  Number.isNaN(estoqueInicial) ||
+  estoqueInicial < 0
+) {
+  alert("Informe um estoque inicial válido.");
+  return;
+}
+
+let itensAtualizados;
+
 if (itemEditando) {
-  setItens((prev) =>
-    prev.map((item) =>
-      item.id === itemEditando.id
-        ? {
-            ...item,
-            descricao,
-            estoqueInicial,
-          }
-        : item
-    )
+  itensAtualizados = itens.map((item) =>
+    item.id === itemEditando.id
+      ? {
+          ...item,
+          descricao,
+          estoqueInicial,
+
+          estoqueAtual:
+            Number(
+              item.estoqueAtual ??
+                item.estoqueInicial ??
+                0
+            ) -
+              Number(
+                item.estoqueInicial ?? 0
+              ) +
+              estoqueInicial,
+        }
+      : item
   );
 } else {
   const idExistente = itens.some(
-    (item) => item.id.toLowerCase() === id.toLowerCase()
+    (item) =>
+      String(item.id).toLowerCase() ===
+      id.toLowerCase()
   );
 
   if (idExistente) {
-    alert("Já existe um item cadastrado com este ID.");
+    alert(
+      "Já existe um item cadastrado com este ID."
+    );
     return;
   }
 
-  setItens((prev) => [
-    ...prev,
+  itensAtualizados = [
+    ...itens,
     {
       id,
       descricao,
       estoqueInicial,
       entradas: 0,
       saidas: 0,
+      totalEntradas: 0,
+      totalSaidas: 0,
       estoqueAtual: estoqueInicial,
     },
-  ]);
+  ];
 }
 
+setItens(itensAtualizados);
+storage.saveInsumos(itensAtualizados);
+
+setPaginaAtual(1);
 fecharModal();
-```
 
 };
 
 const excluirItem = (item) => {
 const confirmar = window.confirm(
-`Deseja excluir o item "${item.descricao}"?`
+Deseja excluir o item "${item.descricao}"?
 );
 
-```
 if (!confirmar) {
   return;
 }
 
-setItens((prev) =>
-  prev.filter((registro) => registro.id !== item.id)
+const itensAtualizados = itens.filter(
+  (registro) => registro.id !== item.id
 );
 
-if (
-  paginaAtual > 1 &&
-  itensPagina.length === 1 &&
-  paginaAtual === totalPaginas
-) {
-  setPaginaAtual((pagina) => Math.max(1, pagina - 1));
-}
-```
+setItens(itensAtualizados);
+storage.saveInsumos(itensAtualizados);
+
+const novaQuantidadePaginas = Math.max(
+  1,
+  Math.ceil(
+    itensAtualizados.length /
+      ITENS_POR_PAGINA
+  )
+);
+
+setPaginaAtual((pagina) =>
+  Math.min(pagina, novaQuantidadePaginas)
+);
 
 };
 
 const mudarPagina = (pagina) => {
-if (pagina < 1 || pagina > totalPaginas) {
+if (
+pagina < 1 ||
+pagina > totalPaginas
+) {
 return;
 }
 
-```
 setPaginaAtual(pagina);
-```
 
 };
 
@@ -192,13 +235,15 @@ setBusca(event.target.value);
 setPaginaAtual(1);
 };
 
-return ( <div>
-{/* Cabeçalho */} <div className="page-header"> <div> <h2>Insumos</h2>
+return (
+<div>
+<div className="page-header">
+<div>
+<h2>Insumos</h2>
 
-```
       <p>
-        Cadastre e acompanhe os materiais disponíveis
-        no estoque.
+        Cadastre e acompanhe os materiais
+        disponíveis no estoque.
       </p>
     </div>
 
@@ -210,11 +255,12 @@ return ( <div>
     </button>
   </div>
 
-  {/* Barra de ferramentas */}
   <div className="toolbar">
     <div className="toolbar-left">
       <div className="search-box">
-        <span className="search-icon">🔎</span>
+        <span className="search-icon">
+          🔎
+        </span>
 
         <input
           type="text"
@@ -237,7 +283,6 @@ return ( <div>
     </div>
   </div>
 
-  {/* Tabela */}
   <div className="card">
     <div className="table-container">
       <table className="data-table">
@@ -279,12 +324,28 @@ return ( <div>
             </tr>
           ) : (
             itensPagina.map((item) => {
+              const estoqueAtual = Number(
+                item.estoqueAtual ?? 0
+              );
+
+              const entradas = Number(
+                item.totalEntradas ??
+                  item.entradas ??
+                  0
+              );
+
+              const saidas = Number(
+                item.totalSaidas ??
+                  item.saidas ??
+                  0
+              );
+
               const estoqueBaixo =
-                item.estoqueAtual > 0 &&
-                item.estoqueAtual <= 10;
+                estoqueAtual > 0 &&
+                estoqueAtual <= 10;
 
               const estoqueZerado =
-                item.estoqueAtual <= 0;
+                estoqueAtual <= 0;
 
               return (
                 <tr key={item.id}>
@@ -294,23 +355,25 @@ return ( <div>
 
                   <td>{item.descricao}</td>
 
-                  <td>{item.estoqueInicial}</td>
+                  <td>
+                    {item.estoqueInicial}
+                  </td>
 
                   <td>
                     <span className="badge badge-success">
-                      +{item.entradas}
+                      +{entradas}
                     </span>
                   </td>
 
                   <td>
                     <span className="badge badge-danger">
-                      -{item.saidas}
+                      -{saidas}
                     </span>
                   </td>
 
                   <td>
                     <strong>
-                      {item.estoqueAtual}
+                      {estoqueAtual}
                     </strong>
                   </td>
 
@@ -335,7 +398,9 @@ return ( <div>
                       <button
                         className="icon-button"
                         title="Editar"
-                        onClick={() => abrirEdicao(item)}
+                        onClick={() =>
+                          abrirEdicao(item)
+                        }
                       >
                         ✏️
                       </button>
@@ -343,7 +408,9 @@ return ( <div>
                       <button
                         className="icon-button danger"
                         title="Excluir"
-                        onClick={() => excluirItem(item)}
+                        onClick={() =>
+                          excluirItem(item)
+                        }
                       >
                         🗑️
                       </button>
@@ -357,20 +424,21 @@ return ( <div>
       </table>
     </div>
 
-    {/* Paginação */}
     <div className="pagination">
       <span className="pagination-info">
         {itensFiltrados.length === 0
           ? "0 registros"
-          : `Página ${paginaAtual} de ${totalPaginas}`}
+          : `Página ${paginaCorrigida} de ${totalPaginas}`}
       </span>
 
       <div className="pagination-buttons">
         <button
           className="pagination-button"
-          disabled={paginaAtual === 1}
+          disabled={paginaCorrigida === 1}
           onClick={() =>
-            mudarPagina(paginaAtual - 1)
+            mudarPagina(
+              paginaCorrigida - 1
+            )
           }
         >
           ‹
@@ -388,49 +456,64 @@ return ( <div>
             return (
               pagina === 1 ||
               pagina === totalPaginas ||
-              Math.abs(pagina - paginaAtual) <= 1
+              Math.abs(
+                pagina - paginaCorrigida
+              ) <= 1
             );
           })
-          .map((pagina, index, paginasVisiveis) => {
-            const paginaAnterior =
-              paginasVisiveis[index - 1];
+          .map(
+            (
+              pagina,
+              index,
+              paginasVisiveis
+            ) => {
+              const paginaAnterior =
+                paginasVisiveis[index - 1];
 
-            const mostrarReticencias =
-              paginaAnterior &&
-              pagina - paginaAnterior > 1;
+              const mostrarReticencias =
+                paginaAnterior &&
+                pagina - paginaAnterior > 1;
 
-            return (
-              <span key={pagina}>
-                {mostrarReticencias && (
-                  <span
-                    style={{
-                      margin: "0 4px",
-                      color: "#888",
-                    }}
+              return (
+                <span key={pagina}>
+                  {mostrarReticencias && (
+                    <span
+                      style={{
+                        margin: "0 4px",
+                        color: "#888",
+                      }}
+                    >
+                      ...
+                    </span>
+                  )}
+
+                  <button
+                    className={`pagination-button ${
+                      paginaCorrigida === pagina
+                        ? "active"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      mudarPagina(pagina)
+                    }
                   >
-                    ...
-                  </span>
-                )}
-
-                <button
-                  className={`pagination-button ${
-                    paginaAtual === pagina
-                      ? "active"
-                      : ""
-                  }`}
-                  onClick={() => mudarPagina(pagina)}
-                >
-                  {pagina}
-                </button>
-              </span>
-            );
-          })}
+                    {pagina}
+                  </button>
+                </span>
+              );
+            }
+          )}
 
         <button
           className="pagination-button"
-          disabled={paginaAtual === totalPaginas}
+          disabled={
+            paginaCorrigida ===
+            totalPaginas
+          }
           onClick={() =>
-            mudarPagina(paginaAtual + 1)
+            mudarPagina(
+              paginaCorrigida + 1
+            )
           }
         >
           ›
@@ -439,12 +522,14 @@ return ( <div>
     </div>
   </div>
 
-  {/* Modal */}
   {modalAberto && (
     <div
       className="modal-overlay"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (
+          event.target ===
+          event.currentTarget
+        ) {
           fecharModal();
         }
       }}
@@ -469,7 +554,6 @@ return ( <div>
         <div className="modal-body">
           <form onSubmit={salvarItem}>
             <div className="form-grid">
-              {/* ID */}
               <div className="form-group">
                 <label
                   className="form-label"
@@ -486,12 +570,13 @@ return ( <div>
                   placeholder="Ex.: ITEM001"
                   value={form.id}
                   onChange={handleChange}
-                  disabled={Boolean(itemEditando)}
+                  disabled={Boolean(
+                    itemEditando
+                  )}
                   required
                 />
               </div>
 
-              {/* Descrição */}
               <div className="form-group">
                 <label
                   className="form-label"
@@ -512,7 +597,6 @@ return ( <div>
                 />
               </div>
 
-              {/* Estoque inicial */}
               <div className="form-group">
                 <label
                   className="form-label"
@@ -529,14 +613,17 @@ return ( <div>
                   step="1"
                   className="form-control"
                   placeholder="0"
-                  value={form.estoqueInicial}
+                  value={
+                    form.estoqueInicial
+                  }
                   onChange={handleChange}
                   required
                 />
               </div>
             </div>
 
-            <div className="alert alert-warning"
+            <div
+              className="alert alert-warning"
               style={{ marginTop: "18px" }}
             >
               <span>💡</span>
@@ -546,10 +633,15 @@ return ( <div>
                   Estoque atual
                 </strong>
 
-                <p style={{ marginTop: "4px" }}>
-                  O estoque atual será calculado
-                  automaticamente com base no estoque
-                  inicial, entradas e saídas.
+                <p
+                  style={{
+                    marginTop: "4px",
+                  }}
+                >
+                  O estoque atual será
+                  calculado automaticamente
+                  com base no estoque inicial,
+                  entradas e saídas.
                 </p>
               </div>
             </div>
@@ -578,7 +670,6 @@ return ( <div>
     </div>
   )}
 </div>
-```
 
 );
 }

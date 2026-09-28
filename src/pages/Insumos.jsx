@@ -24,7 +24,7 @@ setItens(storage.getInsumos());
 const itensFiltrados = useMemo(() => {
 const termo = busca.toLowerCase().trim();
 
-```
+
 if (!termo) {
   return itens;
 }
@@ -47,7 +47,7 @@ const itensPagina = useMemo(() => {
 const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
 const fim = inicio + ITENS_POR_PAGINA;
 
-```
+
 return itensFiltrados.slice(inicio, fim);
 
 

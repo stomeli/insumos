@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { supabase } from "../supabaseClient";
+import { supabase } from "../data/supabase";
 
 const ITENS_POR_PAGINA = 40;
 

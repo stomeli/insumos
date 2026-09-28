@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 
 import Dashboard from "./pages/Dashboard";
@@ -53,44 +52,16 @@ function App() {
   };
 
   const menuPrincipal = [
-    {
-      id: "dashboard",
-      nome: "Dashboard",
-      icone: "▦",
-    },
-    {
-      id: "entradas",
-      nome: "Entrada",
-      icone: "↓",
-    },
-    {
-      id: "saidas",
-      nome: "Saída",
-      icone: "↑",
-    },
-    {
-      id: "historico",
-      nome: "Histórico",
-      icone: "◷",
-    },
+    { id: "dashboard", nome: "Dashboard", icone: "▦" },
+    { id: "entradas", nome: "Entrada", icone: "↓" },
+    { id: "saidas", nome: "Saída", icone: "↑" },
+    { id: "historico", nome: "Histórico", icone: "◷" },
   ];
 
   const menuCadastros = [
-    {
-      id: "insumos",
-      nome: "Insumos",
-      icone: "▣",
-    },
-    {
-      id: "colaboradores",
-      nome: "Colaboradores",
-      icone: "♙",
-    },
-    {
-      id: "lideres",
-      nome: "Líderes",
-      icone: "♟",
-    },
+    { id: "insumos", nome: "Insumos", icone: "▣" },
+    { id: "colaboradores", nome: "Colaboradores", icone: "♙" },
+    { id: "lideres", nome: "Líderes", icone: "♟" },
   ];
 
   return (
@@ -102,22 +73,13 @@ function App() {
         />
       )}
 
-      <aside
-        className={`sidebar ${
-          menuAberto ? "sidebar-open" : ""
-        }`}
-      >
+      <aside className={`sidebar ${menuAberto ? "sidebar-open" : ""}`}>
         <div className="sidebar-logo">
           <div className="logo-mark">ML</div>
 
           <div>
-            <div className="logo-title">
-              Controle
-            </div>
-
-            <div className="logo-subtitle">
-              de Estoque
-            </div>
+            <div className="logo-title">Controle</div>
+            <div className="logo-subtitle">de Estoque</div>
           </div>
 
           <button
@@ -131,9 +93,7 @@ function App() {
 
         <nav className="sidebar-nav">
           <div className="nav-section">
-            <div className="nav-section-title">
-              PRINCIPAL
-            </div>
+            <div className="nav-section-title">PRINCIPAL</div>
 
             {menuPrincipal.map((item) => (
               <button
@@ -143,19 +103,14 @@ function App() {
                 }`}
                 onClick={() => navegar(item.id)}
               >
-                <span className="nav-icon">
-                  {item.icone}
-                </span>
-
+                <span className="nav-icon">{item.icone}</span>
                 <span>{item.nome}</span>
               </button>
             ))}
           </div>
 
           <div className="nav-section">
-            <div className="nav-section-title">
-              CADASTROS
-            </div>
+            <div className="nav-section-title">CADASTROS</div>
 
             {menuCadastros.map((item) => (
               <button
@@ -165,10 +120,7 @@ function App() {
                 }`}
                 onClick={() => navegar(item.id)}
               >
-                <span className="nav-icon">
-                  {item.icone}
-                </span>
-
+                <span className="nav-icon">{item.icone}</span>
                 <span>{item.nome}</span>
               </button>
             ))}
@@ -181,10 +133,7 @@ function App() {
 
             <div>
               <strong>Sistema online</strong>
-
-              <small>
-                Controle de estoque
-              </small>
+              <small>Controle de estoque</small>
             </div>
           </div>
         </div>
@@ -212,18 +161,11 @@ function App() {
 
           <div className="topbar-right">
             <div className="user-info">
-              <div className="user-avatar">
-                ML
-              </div>
+              <div className="user-avatar">ML</div>
 
               <div className="user-details">
-                <strong>
-                  Controle de Estoque
-                </strong>
-
-                <span>
-                  Acesso autorizado
-                </span>
+                <strong>Controle de Estoque</strong>
+                <span>Acesso autorizado</span>
               </div>
             </div>
           </div>
@@ -234,13 +176,10 @@ function App() {
         </main>
 
         <footer className="app-footer">
-          <span>
-            Sistema de Controle de Estoque
-          </span>
+          <span>Sistema de Controle de Estoque</span>
 
           <span>
-            Todos os dados serão centralizados no banco
-            compartilhado.
+            Todos os dados serão centralizados no banco compartilhado.
           </span>
         </footer>
       </div>

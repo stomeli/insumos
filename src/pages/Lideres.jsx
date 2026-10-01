@@ -1,9 +1,11 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { supabase } from "../supabase.js";
 
 const ITENS_POR_PAGINA = 40;
 
 function Lideres() {
   const [lideres, setLideres] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
   const [paginaAtual, setPaginaAtual] = useState(1);
 
@@ -15,7 +17,45 @@ function Lideres() {
     nome: "",
   });
 
-  // Filtragem de líderes
+  // ============================================================
+  // CARREGAR LÍDERES DO SUPABASE
+  // ============================================================
+
+  const carregarLideres = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("lideres")
+        .select("*")
+        .order("nome", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      setLideres(data || []);
+    } catch (error) {
+      console.error("Erro ao carregar líderes:", error);
+
+      alert(
+        error?.message
+          ? `Erro ao carregar líderes: ${error.message}`
+          : "Erro ao carregar líderes do servidor."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarLideres();
+  }, [carregarLideres]);
+
+  // ============================================================
+  // FILTRAGEM
+  // ============================================================
+
   const lideresFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
 
@@ -25,26 +65,27 @@ function Lideres() {
 
     return lideres.filter((lider) => {
       return (
-        lider.id.toLowerCase().includes(termo) ||
-        lider.nome.toLowerCase().includes(termo)
+        String(lider.id).toLowerCase().includes(termo) ||
+        String(lider.nome).toLowerCase().includes(termo)
       );
     });
   }, [lideres, busca]);
 
-  // Cálculo total de páginas
+  // ============================================================
+  // PAGINAÇÃO
+  // ============================================================
+
   const totalPaginas = Math.max(
     1,
     Math.ceil(lideresFiltrados.length / ITENS_POR_PAGINA)
   );
 
-  // Garantir que a página não fique maior que o total disponível
   useEffect(() => {
     if (paginaAtual > totalPaginas) {
       setPaginaAtual(totalPaginas);
     }
   }, [paginaAtual, totalPaginas]);
 
-  // Itens da página atual
   const lideresPagina = useMemo(() => {
     const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
     const fim = inicio + ITENS_POR_PAGINA;
@@ -52,21 +93,33 @@ function Lideres() {
     return lideresFiltrados.slice(inicio, fim);
   }, [lideresFiltrados, paginaAtual]);
 
+  // ============================================================
+  // MODAL - NOVO
+  // ============================================================
+
   const abrirNovo = () => {
     setLiderEditando(null);
+
     setForm({
       id: "",
       nome: "",
     });
+
     setModalAberto(true);
   };
 
+  // ============================================================
+  // MODAL - EDIÇÃO
+  // ============================================================
+
   const abrirEdicao = (lider) => {
     setLiderEditando(lider);
+
     setForm({
       id: lider.id,
       nome: lider.nome,
     });
+
     setModalAberto(true);
   };
 
@@ -74,6 +127,10 @@ function Lideres() {
     setModalAberto(false);
     setLiderEditando(null);
   };
+
+  // ============================================================
+  // ALTERAÇÃO DO FORMULÁRIO
+  // ============================================================
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -84,50 +141,95 @@ function Lideres() {
     }));
   };
 
-  const salvarLider = (event) => {
+  // ============================================================
+  // SALVAR LÍDER
+  // ============================================================
+
+  const salvarLider = async (event) => {
     event.preventDefault();
 
     const id = form.id.trim();
     const nome = form.nome.trim();
 
     if (!id || !nome) {
+      alert("Preencha todos os campos obrigatórios.");
       return;
     }
 
-    if (liderEditando) {
-      setLideres((prev) =>
-        prev.map((lider) =>
-          lider.id === liderEditando.id
-            ? {
-                ...lider,
-                nome,
-              }
-            : lider
-        )
-      );
-    } else {
-      const idExistente = lideres.some(
-        (lider) => lider.id.toLowerCase() === id.toLowerCase()
-      );
+    try {
+      // ========================================================
+      // EDITAR LÍDER
+      // ========================================================
 
-      if (idExistente) {
-        alert("Já existe um líder cadastrado com este ID.");
-        return;
+      if (liderEditando) {
+        const { error } = await supabase
+          .from("lideres")
+          .update({
+            nome,
+          })
+          .eq("id", liderEditando.id);
+
+        if (error) {
+          throw error;
+        }
       }
 
-      setLideres((prev) => [
-        ...prev,
-        {
-          id,
-          nome,
-        },
-      ]);
-    }
+      // ========================================================
+      // NOVO LÍDER
+      // ========================================================
 
-    fecharModal();
+      else {
+        // Verifica se o ID já existe
+        const { data: idExistente, error: checkError } =
+          await supabase
+            .from("lideres")
+            .select("id")
+            .eq("id", id)
+            .maybeSingle();
+
+        if (checkError) {
+          throw checkError;
+        }
+
+        if (idExistente) {
+          alert("Já existe um líder cadastrado com este ID.");
+          return;
+        }
+
+        const { error } = await supabase
+          .from("lideres")
+          .insert([
+            {
+              id,
+              nome,
+            },
+          ]);
+
+        if (error) {
+          throw error;
+        }
+      }
+
+      // Recarrega os dados do banco
+      await carregarLideres();
+
+      fecharModal();
+    } catch (error) {
+      console.error("Erro ao salvar líder:", error);
+
+      alert(
+        error?.message
+          ? `Erro ao salvar líder: ${error.message}`
+          : "Erro ao salvar o líder no banco de dados."
+      );
+    }
   };
 
-  const excluirLider = (lider) => {
+  // ============================================================
+  // EXCLUIR LÍDER
+  // ============================================================
+
+  const excluirLider = async (lider) => {
     const confirmar = window.confirm(
       `Deseja excluir o líder "${lider.nome}"?`
     );
@@ -136,10 +238,31 @@ function Lideres() {
       return;
     }
 
-    setLideres((prev) =>
-      prev.filter((registro) => registro.id !== lider.id)
-    );
+    try {
+      const { error } = await supabase
+        .from("lideres")
+        .delete()
+        .eq("id", lider.id);
+
+      if (error) {
+        throw error;
+      }
+
+      await carregarLideres();
+    } catch (error) {
+      console.error("Erro ao excluir líder:", error);
+
+      alert(
+        error?.message
+          ? `Erro ao excluir líder: ${error.message}`
+          : "Erro ao excluir o líder do banco de dados."
+      );
+    }
   };
+
+  // ============================================================
+  // PAGINAÇÃO
+  // ============================================================
 
   const mudarPagina = (pagina) => {
     if (pagina < 1 || pagina > totalPaginas) {
@@ -149,16 +272,25 @@ function Lideres() {
     setPaginaAtual(pagina);
   };
 
+  // ============================================================
+  // BUSCA
+  // ============================================================
+
   const handleBusca = (event) => {
     setBusca(event.target.value);
     setPaginaAtual(1);
   };
+
+  // ============================================================
+  // INTERFACE
+  // ============================================================
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h2>Líderes</h2>
+
           <p>
             Cadastre os líderes responsáveis pelas movimentações de estoque.
           </p>
@@ -207,7 +339,19 @@ function Lideres() {
             </thead>
 
             <tbody>
-              {lideresPagina.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan="3"
+                    style={{
+                      textAlign: "center",
+                      padding: "2rem",
+                    }}
+                  >
+                    Carregando líderes...
+                  </td>
+                </tr>
+              ) : lideresPagina.length === 0 ? (
                 <tr>
                   <td colSpan="3">
                     <div className="empty-state">
@@ -355,6 +499,7 @@ function Lideres() {
                 className="modal-close"
                 onClick={fecharModal}
                 aria-label="Fechar"
+                type="button"
               >
                 ×
               </button>
@@ -364,7 +509,10 @@ function Lideres() {
               <form onSubmit={salvarLider}>
                 <div className="form-grid">
                   <div className="form-group">
-                    <label className="form-label" htmlFor="id">
+                    <label
+                      className="form-label"
+                      htmlFor="id"
+                    >
                       ID do líder *
                     </label>
 
@@ -382,7 +530,10 @@ function Lideres() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label" htmlFor="nome">
+                    <label
+                      className="form-label"
+                      htmlFor="nome"
+                    >
                       Nome completo *
                     </label>
 
@@ -408,7 +559,10 @@ function Lideres() {
                     Cancelar
                   </button>
 
-                  <button type="submit" className="btn btn-primary">
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                  >
                     {liderEditando
                       ? "Salvar alterações"
                       : "Cadastrar líder"}

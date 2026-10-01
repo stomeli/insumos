@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "../supabase.js"; // Ajuste o caminho do seu cliente Supabase
+import { supabase } from "../supabase.js";
 
 function Entradas() {
   const [form, setForm] = useState({
@@ -20,20 +20,31 @@ function Entradas() {
     async function carregarDados() {
       try {
         setLoadingDados(true);
+        setMensagem("");
 
         const [resInsumos, resLideres] = await Promise.all([
           supabase.from("insumos").select("*"),
           supabase.from("lideres").select("*"),
         ]);
 
-        if (resInsumos.error) throw resInsumos.error;
-        if (resLideres.error) throw resLideres.error;
+        if (resInsumos.error) {
+          throw resInsumos.error;
+        }
+
+        if (resLideres.error) {
+          throw resLideres.error;
+        }
 
         setInsumos(resInsumos.data || []);
         setLideres(resLideres.data || []);
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
-        setMensagem("Erro ao carregar insumos e líderes do banco de dados.");
+
+        setMensagem(
+          error?.message
+            ? `Erro ao carregar dados: ${error.message}`
+            : "Erro ao carregar insumos e líderes do banco de dados."
+        );
       } finally {
         setLoadingDados(false);
       }
@@ -45,6 +56,7 @@ function Entradas() {
   // Busca insensível a maiúsculas/minúsculas
   const itemSelecionado = useMemo(() => {
     if (!form.itemId) return null;
+
     return insumos.find(
       (item) =>
         String(item.id).trim().toLowerCase() ===
@@ -54,6 +66,7 @@ function Entradas() {
 
   const liderSelecionado = useMemo(() => {
     if (!form.liderId) return null;
+
     return lideres.find(
       (lider) =>
         String(lider.id).trim().toLowerCase() ===
@@ -92,51 +105,52 @@ function Entradas() {
 
     const quantidade = Number(form.quantidade);
 
-    if (isNaN(quantidade) || quantidade <= 0) {
+    if (!Number.isFinite(quantidade) || quantidade <= 0) {
       setMensagem("Informe uma quantidade válida e maior que zero.");
       return;
     }
 
     try {
       setLoading(true);
+      setMensagem("");
 
-      // 1. Salva a nova entrada na tabela 'entradas'
-      const { error: errorEntrada } = await supabase.from("entradas").insert([
-        {
-          data: form.data,
-          item_id: itemSelecionado.id,
-          descricao: itemSelecionado.descricao,
-          quantidade,
-          lider_id: liderSelecionado.id,
-          lider_nome: liderSelecionado.nome,
-        },
-      ]);
+      // Registra a entrada através da RPC do Supabase.
+      //
+      // A RPC faz:
+      // 1. Validação do item
+      // 2. Validação do líder
+      // 3. Registro em "entradas"
+      // 4. Atualização do estoque em "insumos"
+      //
+      // Tudo dentro da mesma transação no PostgreSQL.
+      const { data, error } = await supabase.rpc("registrar_entrada", {
+        p_data: form.data,
+        p_item_id: itemSelecionado.id,
+        p_quantidade: quantidade,
+        p_lider_id: liderSelecionado.id,
+      });
 
-      if (errorEntrada) throw errorEntrada;
+      if (error) {
+        throw error;
+      }
 
-      // 2. Calcula e atualiza o estoque do insumo na tabela 'insumos'
-      const estoqueAtual = Number(
-        itemSelecionado.estoque_atual ?? itemSelecionado.estoque_inicial ?? 0
-      );
-      const totalEntradas =
-        Number(itemSelecionado.total_entradas ?? 0) + quantidade;
-      const novoEstoque = estoqueAtual + quantidade;
+      if (!data || data.sucesso !== true) {
+        throw new Error("Não foi possível registrar a entrada.");
+      }
 
-      const { error: errorInsumo } = await supabase
-        .from("insumos")
-        .update({
-          total_entradas: totalEntradas,
-          estoque_atual: novoEstoque,
-        })
-        .eq("id", itemSelecionado.id);
+      // Dados atualizados retornados pela RPC
+      const insumoAtualizado = data.insumo;
 
-      if (errorInsumo) throw errorInsumo;
-
-      // 3. Atualiza o estado local do insumo sem precisar recarregar tudo
+      // Atualiza o estado local do insumo
       setInsumos((prev) =>
         prev.map((item) =>
-          item.id === itemSelecionado.id
-            ? { ...item, total_entradas: totalEntradas, estoque_atual: novoEstoque }
+          String(item.id) === String(insumoAtualizado.id)
+            ? {
+                ...item,
+                estoque_atual: insumoAtualizado.estoque_atual,
+                total_entradas: insumoAtualizado.total_entradas,
+                total_saidas: insumoAtualizado.total_saidas,
+              }
             : item
         )
       );
@@ -152,7 +166,12 @@ function Entradas() {
       });
     } catch (error) {
       console.error("Erro ao registrar entrada:", error);
-      setMensagem("Erro ao registrar entrada no Supabase. Tente novamente.");
+
+      setMensagem(
+        error?.message
+          ? `Erro ao registrar entrada: ${error.message}`
+          : "Erro ao registrar entrada no Supabase. Tente novamente."
+      );
     } finally {
       setLoading(false);
     }

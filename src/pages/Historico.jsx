@@ -1,198 +1,108 @@
-import { useMemo, useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../supabase.js";
 
 const ITENS_POR_PAGINA = 40;
 
 function Historico() {
   const [registros, setRegistros] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const [selecionados, setSelecionados] = useState([]);
 
-  const [modalAberto, setModalAberto] = useState(false);
-  const [registroEditando, setRegistroEditando] = useState(null);
+  const carregarHistorico = async () => {
+    setLoading(true);
 
-  const [form, setForm] = useState({
-    data: "",
-    hora: "",
-    colaboradorId: "",
-    nomeColaborador: "",
-    itemId: "",
-    descricaoItem: "",
-    quantidade: "",
-    liderId: "",
-    nomeLider: "",
-  });
+    const { data, error } = await supabase
+      .from("historico")
+      .select("*")
+      .order("data", { ascending: false })
+      .order("hora", { ascending: false });
 
-  // Filtragem segura prevenindo erros com null/undefined
-  const registrosFiltrados = useMemo(() => {
+    if (error) {
+      console.error(error);
+      alert("Erro ao carregar histórico.");
+      setRegistros([]);
+    } else {
+      setRegistros(data || []);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    carregarHistorico();
+  }, []);
+
+  const filtrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
 
     if (!termo) return registros;
 
     return registros.filter((registro) => {
-      const campos = [
-        registro.colaboradorId,
-        registro.nomeColaborador,
-        registro.itemId,
-        registro.descricaoItem,
-        registro.liderId,
-        registro.nomeLider,
-      ];
+      const texto = [
+        registro.tipo,
+        registro.colaborador_id,
+        registro.colaborador_nome,
+        registro.item_id,
+        registro.descricao,
+        registro.lider_id,
+        registro.lider_nome,
+      ]
+        .join(" ")
+        .toLowerCase();
 
-      return campos.some((campo) =>
-        String(campo || "").toLowerCase().includes(termo)
-      );
+      return texto.includes(termo);
     });
   }, [registros, busca]);
 
   const totalPaginas = Math.max(
     1,
-    Math.ceil(registrosFiltrados.length / ITENS_POR_PAGINA)
+    Math.ceil(filtrados.length / ITENS_POR_PAGINA)
   );
 
-  // Garante que a página atual nunca fique fora do limite válido
   useEffect(() => {
     if (paginaAtual > totalPaginas) {
       setPaginaAtual(totalPaginas);
     }
-  }, [totalPaginas, paginaAtual]);
+  }, [paginaAtual, totalPaginas]);
 
   const registrosPagina = useMemo(() => {
     const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
-    return registrosFiltrados.slice(inicio, inicio + ITENS_POR_PAGINA);
-  }, [registrosFiltrados, paginaAtual]);
 
-  const idsPagina = useMemo(
-    () => registrosPagina.map((registro) => registro.id),
-    [registrosPagina]
-  );
+    return filtrados.slice(
+      inicio,
+      inicio + ITENS_POR_PAGINA
+    );
+  }, [filtrados, paginaAtual]);
 
-  const todosDaPaginaSelecionados =
-    idsPagina.length > 0 &&
-    idsPagina.every((id) => selecionados.includes(id));
-
-  const abrirEdicao = (registro) => {
-    setRegistroEditando(registro);
-    setForm({
-      data: registro.data || "",
-      hora: registro.hora || "",
-      colaboradorId: registro.colaboradorId || "",
-      nomeColaborador: registro.nomeColaborador || "",
-      itemId: registro.itemId || "",
-      descricaoItem: registro.descricaoItem || "",
-      quantidade: registro.quantidade || "",
-      liderId: registro.liderId || "",
-      nomeLider: registro.nomeLider || "",
-    });
-    setModalAberto(true);
+  const handleBusca = (event) => {
+    setBusca(event.target.value);
+    setPaginaAtual(1);
   };
 
-  const fecharModal = () => {
-    setModalAberto(false);
-    setRegistroEditando(null);
-  };
-
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const salvarEdicao = (event) => {
-    event.preventDefault();
-    if (!registroEditando) return;
-
-    setRegistros((prev) =>
-      prev.map((registro) =>
-        registro.id === registroEditando.id
-          ? {
-              ...registro,
-              ...form,
-              quantidade: Number(form.quantidade),
-            }
-          : registro
-      )
+  const excluirRegistro = async (registro) => {
+    const confirmar = window.confirm(
+      `Deseja excluir esta ${registro.tipo.toLowerCase()}?`
     );
 
-    fecharModal();
-  };
+    if (!confirmar) return;
 
-  const alternarSelecao = (id) => {
-    setSelecionados((prev) =>
-      prev.includes(id)
-        ? prev.filter((registroId) => registroId !== id)
-        : [...prev, id]
+    const { error } = await supabase.rpc(
+      registro.tipo === "Entrada"
+        ? "excluir_entrada"
+        : "excluir_saida",
+      {
+        p_id: registro.id_original,
+      }
     );
-  };
 
-  const selecionarTodosDaPagina = () => {
-    if (todosDaPaginaSelecionados) {
-      setSelecionados((prev) =>
-        prev.filter((id) => !idsPagina.includes(id))
-      );
+    if (error) {
+      console.error(error);
+      alert(error.message || "Erro ao excluir movimentação.");
       return;
     }
 
-    setSelecionados((prev) => {
-      const novos = idsPagina.filter((id) => !prev.includes(id));
-      return [...prev, ...novos];
-    });
-  };
-
-  const selecionarTodosRegistros = () => {
-    const todosIds = registrosFiltrados.map((registro) => registro.id);
-    setSelecionados(todosIds);
-  };
-
-  const limparSelecao = () => setSelecionados([]);
-
-  const excluirRegistro = (registro) => {
-    if (!window.confirm("Deseja excluir este registro do histórico?")) return;
-
-    setRegistros((prev) => prev.filter((item) => item.id !== registro.id));
-    setSelecionados((prev) => prev.filter((id) => id !== registro.id));
-  };
-
-  const excluirSelecionados = () => {
-    if (selecionados.length === 0) return;
-
-    if (
-      !window.confirm(
-        `Deseja excluir ${selecionados.length} registro(s) selecionado(s)?`
-      )
-    ) {
-      return;
-    }
-
-    const conjuntoSelecionados = new Set(selecionados);
-    setRegistros((prev) =>
-      prev.filter((registro) => !conjuntoSelecionados.has(registro.id))
-    );
-    setSelecionados([]);
-  };
-
-  const excluirTodos = () => {
-    if (registrosFiltrados.length === 0) return;
-
-    if (
-      !window.confirm(
-        `Deseja excluir todos os ${registrosFiltrados.length} registros exibidos?`
-      )
-    ) {
-      return;
-    }
-
-    if (busca) {
-      const idsParaExcluir = new Set(
-        registrosFiltrados.map((registro) => registro.id)
-      );
-      setRegistros((prev) =>
-        prev.filter((registro) => !idsParaExcluir.has(registro.id))
-      );
-    } else {
-      setRegistros([]);
-    }
-
-    setSelecionados([]);
+    await carregarHistorico();
   };
 
   const mudarPagina = (pagina) => {
@@ -201,33 +111,22 @@ function Historico() {
     }
   };
 
-  const handleBusca = (event) => {
-    setBusca(event.target.value);
-    setPaginaAtual(1);
-    setSelecionados([]);
-  };
-
   return (
     <div>
-      {/* Cabeçalho */}
       <div className="page-header">
         <div>
           <h2>Histórico</h2>
-          <p>Consulte e gerencie todas as movimentações de estoque.</p>
+          <p>
+            Consulte todas as entradas e saídas de estoque.
+          </p>
         </div>
-
-        {registrosFiltrados.length > 0 && (
-          <button className="btn btn-danger" onClick={excluirTodos}>
-            🗑️ Excluir todos
-          </button>
-        )}
       </div>
 
-      {/* Barra de ferramentas */}
       <div className="toolbar">
         <div className="toolbar-left">
           <div className="search-box">
             <span className="search-icon">🔎</span>
+
             <input
               type="text"
               placeholder="Buscar colaborador, item ou líder..."
@@ -239,67 +138,19 @@ function Historico() {
 
         <div className="toolbar-right">
           <span style={{ color: "#666", fontSize: "11px" }}>
-            {registrosFiltrados.length} registro(s)
+            {filtrados.length} registro(s)
           </span>
         </div>
       </div>
 
-      {/* Barra de seleção */}
-      {selecionados.length > 0 && (
-        <div
-          className="selection-bar"
-          style={{
-            marginBottom: "14px",
-            padding: "12px 16px",
-            background: "#fff8b8",
-            border: "1px solid #f0d900",
-            borderRadius: "10px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "12px",
-            flexWrap: "wrap",
-          }}
-        >
-          <strong style={{ fontSize: "12px" }}>
-            {selecionados.length} registro(s) selecionado(s)
-          </strong>
-
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <button
-              className="btn btn-secondary"
-              onClick={selecionarTodosRegistros}
-            >
-              Selecionar todos ({registrosFiltrados.length})
-            </button>
-
-            <button className="btn btn-secondary" onClick={limparSelecao}>
-              Limpar seleção
-            </button>
-
-            <button className="btn btn-danger" onClick={excluirSelecionados}>
-              🗑️ Excluir selecionados
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Tabela */}
       <div className="card">
         <div className="table-container">
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{ width: "42px" }}>
-                  <input
-                    type="checkbox"
-                    checked={todosDaPaginaSelecionados}
-                    onChange={selecionarTodosDaPagina}
-                    disabled={idsPagina.length === 0}
-                    aria-label="Selecionar registros da página"
-                  />
-                </th>
-                <th>Data e hora</th>
+                <th>Tipo</th>
+                <th>Data</th>
+                <th>Hora</th>
                 <th>ID colaborador</th>
                 <th>Nome</th>
                 <th>ID item</th>
@@ -312,104 +163,115 @@ function Historico() {
             </thead>
 
             <tbody>
-              {registrosPagina.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan="10">
+                  <td
+                    colSpan="11"
+                    style={{
+                      textAlign: "center",
+                      padding: "2rem",
+                    }}
+                  >
+                    Carregando histórico...
+                  </td>
+                </tr>
+              ) : registrosPagina.length === 0 ? (
+                <tr>
+                  <td colSpan="11">
                     <div className="empty-state">
                       <div className="empty-state-icon">📋</div>
+
                       <h3>
                         {busca
                           ? "Nenhum registro encontrado"
                           : "Nenhum registro no histórico"}
                       </h3>
+
                       <p>
                         {busca
                           ? "Tente outro termo de pesquisa."
-                          : "As movimentações aparecerão aqui após os registros de entrada e saída."}
+                          : "As movimentações aparecerão aqui."}
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                registrosPagina.map((registro) => {
-                  const selecionado = selecionados.includes(registro.id);
-
-                  return (
-                    <tr
-                      key={registro.id}
-                      style={
-                        selecionado ? { background: "#fffde0" } : undefined
-                      }
-                    >
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selecionado}
-                          onChange={() => alternarSelecao(registro.id)}
-                          aria-label={`Selecionar registro ${registro.id}`}
-                        />
-                      </td>
-                      <td>
-                        <div>
-                          <strong>{registro.data}</strong>
-                          <div
-                            style={{
-                              color: "#888",
-                              fontSize: "10px",
-                              marginTop: "2px",
-                            }}
-                          >
-                            {registro.hora}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <strong>{registro.colaboradorId}</strong>
-                      </td>
-                      <td>{registro.nomeColaborador}</td>
-                      <td>
-                        <strong>{registro.itemId}</strong>
-                      </td>
-                      <td>{registro.descricaoItem}</td>
-                      <td>
-                        <span className="badge badge-danger">
-                          -{registro.quantidade}
+                registrosPagina.map((registro) => (
+                  <tr key={`${registro.tipo}-${registro.id_original}`}>
+                    <td>
+                      {registro.tipo === "Entrada" ? (
+                        <span className="badge badge-success">
+                          Entrada
                         </span>
-                      </td>
-                      <td>
-                        <strong>{registro.liderId}</strong>
-                      </td>
-                      <td>{registro.nomeLider}</td>
-                      <td>
-                        <div className="action-buttons">
-                          <button
-                            className="icon-button"
-                            title="Editar"
-                            onClick={() => abrirEdicao(registro)}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            className="icon-button danger"
-                            title="Excluir"
-                            onClick={() => excluirRegistro(registro)}
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                      ) : (
+                        <span className="badge badge-danger">
+                          Saída
+                        </span>
+                      )}
+                    </td>
+
+                    <td>{registro.data}</td>
+
+                    <td>{registro.hora || "-"}</td>
+
+                    <td>
+                      <strong>
+                        {registro.colaborador_id || "-"}
+                      </strong>
+                    </td>
+
+                    <td>
+                      {registro.colaborador_nome || "-"}
+                    </td>
+
+                    <td>
+                      <strong>{registro.item_id}</strong>
+                    </td>
+
+                    <td>{registro.descricao}</td>
+
+                    <td>
+                      <span
+                        className={
+                          registro.tipo === "Entrada"
+                            ? "badge badge-success"
+                            : "badge badge-danger"
+                        }
+                      >
+                        {registro.tipo === "Entrada" ? "+" : "-"}
+                        {registro.quantidade}
+                      </span>
+                    </td>
+
+                    <td>
+                      <strong>{registro.lider_id}</strong>
+                    </td>
+
+                    <td>{registro.lider_nome}</td>
+
+                    <td>
+                      <div className="action-buttons">
+                        <button
+                          className="icon-button danger"
+                          title="Excluir"
+                          onClick={() =>
+                            excluirRegistro(registro)
+                          }
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Paginação */}
         <div className="pagination">
           <span className="pagination-info">
-            {registrosFiltrados.length === 0
+            {filtrados.length === 0
               ? "0 registros"
               : `Página ${paginaAtual} de ${totalPaginas}`}
           </span>
@@ -423,43 +285,30 @@ function Historico() {
               ‹
             </button>
 
-            {Array.from({ length: totalPaginas }, (_, index) => index + 1)
+            {Array.from(
+              { length: totalPaginas },
+              (_, index) => index + 1
+            )
               .filter((pagina) => {
                 if (totalPaginas <= 5) return true;
+
                 return (
                   pagina === 1 ||
                   pagina === totalPaginas ||
                   Math.abs(pagina - paginaAtual) <= 1
                 );
               })
-              .map((pagina, index, paginasVisiveis) => {
-                const paginaAnterior = paginasVisiveis[index - 1];
-                const mostrarReticencias =
-                  paginaAnterior && pagina - paginaAnterior > 1;
-
-                return (
-                  <span key={pagina}>
-                    {mostrarReticencias && (
-                      <span
-                        style={{
-                          margin: "0 4px",
-                          color: "#888",
-                        }}
-                      >
-                        ...
-                      </span>
-                    )}
-                    <button
-                      className={`pagination-button ${
-                        paginaAtual === pagina ? "active" : ""
-                      }`}
-                      onClick={() => mudarPagina(pagina)}
-                    >
-                      {pagina}
-                    </button>
-                  </span>
-                );
-              })}
+              .map((pagina) => (
+                <button
+                  key={pagina}
+                  className={`pagination-button ${
+                    paginaAtual === pagina ? "active" : ""
+                  }`}
+                  onClick={() => mudarPagina(pagina)}
+                >
+                  {pagina}
+                </button>
+              ))}
 
             <button
               className="pagination-button"
@@ -471,160 +320,6 @@ function Historico() {
           </div>
         </div>
       </div>
-
-      {/* Modal de edição */}
-      {modalAberto && (
-        <div
-          className="modal-overlay"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              fecharModal();
-            }
-          }}
-        >
-          <div className="modal" style={{ maxWidth: "850px" }}>
-            <div className="modal-header">
-              <h3>Editar registro</h3>
-              <button
-                className="modal-close"
-                onClick={fecharModal}
-                aria-label="Fechar"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <form onSubmit={salvarEdicao}>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label className="form-label">Data</label>
-                    <input
-                      name="data"
-                      type="date"
-                      className="form-control"
-                      value={form.data}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Hora</label>
-                    <input
-                      name="hora"
-                      type="time"
-                      className="form-control"
-                      value={form.hora}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">ID do colaborador</label>
-                    <input
-                      name="colaboradorId"
-                      type="text"
-                      className="form-control"
-                      value={form.colaboradorId}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Nome do colaborador</label>
-                    <input
-                      name="nomeColaborador"
-                      type="text"
-                      className="form-control"
-                      value={form.nomeColaborador}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">ID do item</label>
-                    <input
-                      name="itemId"
-                      type="text"
-                      className="form-control"
-                      value={form.itemId}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Descrição do item</label>
-                    <input
-                      name="descricaoItem"
-                      type="text"
-                      className="form-control"
-                      value={form.descricaoItem}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Quantidade</label>
-                    <input
-                      name="quantidade"
-                      type="number"
-                      min="1"
-                      className="form-control"
-                      value={form.quantidade}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">ID do líder</label>
-                    <input
-                      name="liderId"
-                      type="text"
-                      className="form-control"
-                      value={form.liderId}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Nome do líder</label>
-                    <input
-                      name="nomeLider"
-                      type="text"
-                      className="form-control"
-                      value={form.nomeLider}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="form-actions">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={fecharModal}
-                  >
-                    Cancelar
-                  </button>
-
-                  <button type="submit" className="btn btn-primary">
-                    Salvar alterações
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

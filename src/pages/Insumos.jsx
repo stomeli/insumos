@@ -21,47 +21,20 @@ function Insumos() {
   const carregarInsumos = useCallback(async () => {
     setLoading(true);
 
-    try {
-      const { data, error } = await supabase
-        .from("insumos")
-        .select("*")
-        .order("descricao", { ascending: true });
+    const { data, error } = await supabase
+      .from("insumos")
+      .select("*")
+      .order("descricao", { ascending: true });
 
-      if (error) {
-        throw error;
-      }
-
-      const formatados = (data || []).map((item) => {
-        const estoqueInicial = Number(item.estoque_inicial ?? 0);
-        const entradas = Number(item.total_entradas ?? 0);
-        const saidas = Number(item.total_saidas ?? 0);
-        const estoqueAtual = Number(
-          item.estoque_atual ??
-            estoqueInicial + entradas - saidas
-        );
-
-        return {
-          id: item.id,
-          descricao: item.descricao,
-          estoqueInicial,
-          entradas,
-          saidas,
-          estoqueAtual,
-        };
-      });
-
-      setItens(formatados);
-    } catch (error) {
-      console.error("Erro ao carregar insumos:", error);
-
-      alert(
-        error?.message
-          ? `Erro ao carregar insumos: ${error.message}`
-          : "Erro ao carregar insumos do servidor."
-      );
-    } finally {
-      setLoading(false);
+    if (error) {
+      console.error(error);
+      alert("Erro ao carregar insumos.");
+      setItens([]);
+    } else {
+      setItens(data || []);
     }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -71,16 +44,11 @@ function Insumos() {
   const itensFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
 
-    if (!termo) {
-      return itens;
-    }
+    if (!termo) return itens;
 
-    return itens.filter((item) => {
-      return (
-        String(item.id).toLowerCase().includes(termo) ||
-        String(item.descricao).toLowerCase().includes(termo)
-      );
-    });
+    return itens.filter((item) =>
+      `${item.id} ${item.descricao}`.toLowerCase().includes(termo)
+    );
   }, [itens, busca]);
 
   const totalPaginas = Math.max(
@@ -88,28 +56,24 @@ function Insumos() {
     Math.ceil(itensFiltrados.length / ITENS_POR_PAGINA)
   );
 
-  const itensPagina = useMemo(() => {
-    const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
-    const fim = inicio + ITENS_POR_PAGINA;
-
-    return itensFiltrados.slice(inicio, fim);
-  }, [itensFiltrados, paginaAtual]);
-
   useEffect(() => {
     if (paginaAtual > totalPaginas) {
       setPaginaAtual(totalPaginas);
     }
   }, [paginaAtual, totalPaginas]);
 
+  const itensPagina = useMemo(() => {
+    const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+    return itensFiltrados.slice(inicio, inicio + ITENS_POR_PAGINA);
+  }, [itensFiltrados, paginaAtual]);
+
   const abrirNovoItem = () => {
     setItemEditando(null);
-
     setForm({
       id: "",
       descricao: "",
       estoqueInicial: "",
     });
-
     setModalAberto(true);
   };
 
@@ -119,7 +83,7 @@ function Insumos() {
     setForm({
       id: item.id,
       descricao: item.descricao,
-      estoqueInicial: String(item.estoqueInicial ?? 0),
+      estoqueInicial: String(item.estoque_inicial ?? 0),
     });
 
     setModalAberto(true);
@@ -146,149 +110,95 @@ function Insumos() {
     const descricao = form.descricao.trim();
     const estoqueInicial = Number(form.estoqueInicial);
 
-    if (!id || !descricao || Number.isNaN(estoqueInicial)) {
+    if (!id || !descricao) {
+      alert("Preencha todos os campos.");
       return;
     }
 
-    if (estoqueInicial < 0) {
-      alert("O estoque inicial não pode ser negativo.");
+    if (!Number.isFinite(estoqueInicial) || estoqueInicial < 0) {
+      alert("Informe um estoque inicial válido.");
       return;
     }
 
-    try {
-      // ========================================================
-      // EDIÇÃO
-      // ========================================================
-      if (itemEditando) {
-        /*
-         * Ao editar o estoque inicial, NÃO alteramos:
-         *
-         * total_entradas
-         * total_saidas
-         * estoque_atual
-         *
-         * Apenas alteramos a descrição e o estoque inicial.
-         *
-         * O estoque atual continua sendo controlado pelas
-         * entradas e saídas registradas.
-         */
-        const { error } = await supabase
-          .from("insumos")
-          .update({
-            descricao,
-            estoque_inicial: estoqueInicial,
-          })
-          .eq("id", itemEditando.id);
+    if (itemEditando) {
+      const { error } = await supabase
+        .from("insumos")
+        .update({
+          descricao,
+          estoque_inicial: estoqueInicial,
+        })
+        .eq("id", itemEditando.id);
 
-        if (error) {
-          throw error;
-        }
+      if (error) {
+        console.error(error);
+        alert("Erro ao atualizar o insumo.");
+        return;
+      }
+    } else {
+      const { data: existente, error: consultaError } = await supabase
+        .from("insumos")
+        .select("id")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (consultaError) {
+        console.error(consultaError);
+        alert("Erro ao verificar o ID.");
+        return;
       }
 
-      // ========================================================
-      // NOVO ITEM
-      // ========================================================
-      else {
-        /*
-         * Verifica se já existe um item com o mesmo ID.
-         */
-        const { data: idExistente, error: checkError } =
-          await supabase
-            .from("insumos")
-            .select("id")
-            .eq("id", id)
-            .maybeSingle();
-
-        if (checkError) {
-          throw checkError;
-        }
-
-        if (idExistente) {
-          alert("Já existe um item cadastrado com este ID.");
-          return;
-        }
-
-        /*
-         * Novo item começa com:
-         *
-         * estoque_inicial = valor informado
-         * total_entradas = 0
-         * total_saidas = 0
-         * estoque_atual = estoque inicial
-         */
-        const { error } = await supabase
-          .from("insumos")
-          .insert([
-            {
-              id,
-              descricao,
-              estoque_inicial: estoqueInicial,
-              total_entradas: 0,
-              total_saidas: 0,
-              estoque_atual: estoqueInicial,
-            },
-          ]);
-
-        if (error) {
-          throw error;
-        }
+      if (existente) {
+        alert("Já existe um insumo com esse ID.");
+        return;
       }
 
-      await carregarInsumos();
-      fecharModal();
-    } catch (error) {
-      console.error("Erro ao salvar insumo:", error);
+      const { error } = await supabase.from("insumos").insert({
+        id,
+        descricao,
+        estoque_inicial: estoqueInicial,
+        total_entradas: 0,
+        total_saidas: 0,
+        estoque_atual: estoqueInicial,
+      });
 
-      alert(
-        error?.message
-          ? `Erro ao salvar insumo: ${error.message}`
-          : "Erro ao salvar o insumo no banco de dados."
-      );
+      if (error) {
+        console.error(error);
+        alert("Erro ao cadastrar o insumo.");
+        return;
+      }
     }
+
+    await carregarInsumos();
+    fecharModal();
   };
 
   const excluirItem = async (item) => {
     const confirmar = window.confirm(
-      `Deseja excluir o item "${item.descricao}"?`
+      `Deseja excluir o insumo "${item.descricao}"?`
     );
 
-    if (!confirmar) {
+    if (!confirmar) return;
+
+    const { error } = await supabase
+      .from("insumos")
+      .delete()
+      .eq("id", item.id);
+
+    if (error) {
+      console.error(error);
+      alert(
+        "Não foi possível excluir. Verifique se existem movimentações vinculadas a este insumo."
+      );
       return;
     }
 
-    try {
-      const { error } = await supabase
-        .from("insumos")
-        .delete()
-        .eq("id", item.id);
-
-      if (error) {
-        throw error;
-      }
-
-      await carregarInsumos();
-    } catch (error) {
-      console.error("Erro ao excluir insumo:", error);
-
-      /*
-       * Se o item já possuir entradas ou saídas relacionadas,
-       * o banco pode impedir a exclusão por causa das chaves
-       * estrangeiras.
-       */
-      alert(
-        error?.message
-          ? `Erro ao excluir o item: ${error.message}`
-          : "Erro ao excluir o item do banco de dados."
-      );
-    }
+    await carregarInsumos();
   };
 
   const mudarPagina = (pagina) => {
-    if (pagina < 1 || pagina > totalPaginas) {
-      return;
+    if (pagina >= 1 && pagina <= totalPaginas) {
+      setPaginaAtual(pagina);
     }
-
-    setPaginaAtual(pagina);
   };
 
   const handleBusca = (event) => {
@@ -301,9 +211,7 @@ function Insumos() {
       <div className="page-header">
         <div>
           <h2>Insumos</h2>
-          <p>
-            Cadastre e acompanhe os materiais disponíveis no estoque.
-          </p>
+          <p>Cadastre e acompanhe os materiais disponíveis no estoque.</p>
         </div>
 
         <button className="btn btn-primary" onClick={abrirNovoItem}>
@@ -326,12 +234,7 @@ function Insumos() {
         </div>
 
         <div className="toolbar-right">
-          <span
-            style={{
-              color: "#666",
-              fontSize: "11px",
-            }}
-          >
+          <span style={{ color: "#666", fontSize: "11px" }}>
             {itensFiltrados.length} item(ns)
           </span>
         </div>
@@ -356,13 +259,7 @@ function Insumos() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td
-                    colSpan="8"
-                    style={{
-                      textAlign: "center",
-                      padding: "2rem",
-                    }}
-                  >
+                  <td colSpan="8" style={{ textAlign: "center", padding: "2rem" }}>
                     Carregando insumos...
                   </td>
                 </tr>
@@ -371,16 +268,14 @@ function Insumos() {
                   <td colSpan="8">
                     <div className="empty-state">
                       <div className="empty-state-icon">📦</div>
-
                       <h3>
                         {busca
                           ? "Nenhum item encontrado"
                           : "Nenhum insumo cadastrado"}
                       </h3>
-
                       <p>
                         {busca
-                          ? "Tente utilizar outro termo de pesquisa."
+                          ? "Tente outro termo de pesquisa."
                           : "Clique em “Novo insumo” para começar."}
                       </p>
                     </div>
@@ -388,9 +283,7 @@ function Insumos() {
                 </tr>
               ) : (
                 itensPagina.map((item) => {
-                  const estoqueAtual = Number(
-                    item.estoqueAtual || 0
-                  );
+                  const estoqueAtual = Number(item.estoque_atual || 0);
 
                   const estoqueBaixo =
                     estoqueAtual > 0 && estoqueAtual <= 10;
@@ -405,17 +298,17 @@ function Insumos() {
 
                       <td>{item.descricao}</td>
 
-                      <td>{item.estoqueInicial}</td>
+                      <td>{item.estoque_inicial}</td>
 
                       <td>
                         <span className="badge badge-success">
-                          +{item.entradas || 0}
+                          +{item.total_entradas || 0}
                         </span>
                       </td>
 
                       <td>
                         <span className="badge badge-danger">
-                          -{item.saidas || 0}
+                          -{item.total_saidas || 0}
                         </span>
                       </td>
 
@@ -487,9 +380,7 @@ function Insumos() {
               (_, index) => index + 1
             )
               .filter((pagina) => {
-                if (totalPaginas <= 5) {
-                  return true;
-                }
+                if (totalPaginas <= 5) return true;
 
                 return (
                   pagina === 1 ||
@@ -498,31 +389,19 @@ function Insumos() {
                 );
               })
               .map((pagina, index, paginasVisiveis) => {
-                const paginaAnterior =
-                  paginasVisiveis[index - 1];
-
-                const mostrarReticencias =
-                  paginaAnterior &&
-                  pagina - paginaAnterior > 1;
+                const anterior = paginasVisiveis[index - 1];
 
                 return (
                   <span key={pagina}>
-                    {mostrarReticencias && (
-                      <span
-                        style={{
-                          margin: "0 4px",
-                          color: "#888",
-                        }}
-                      >
+                    {anterior && pagina - anterior > 1 && (
+                      <span style={{ margin: "0 4px", color: "#888" }}>
                         ...
                       </span>
                     )}
 
                     <button
                       className={`pagination-button ${
-                        paginaAtual === pagina
-                          ? "active"
-                          : ""
+                        paginaAtual === pagina ? "active" : ""
                       }`}
                       onClick={() => mudarPagina(pagina)}
                     >
@@ -554,16 +433,11 @@ function Insumos() {
         >
           <div className="modal">
             <div className="modal-header">
-              <h3>
-                {itemEditando
-                  ? "Editar insumo"
-                  : "Novo insumo"}
-              </h3>
+              <h3>{itemEditando ? "Editar insumo" : "Novo insumo"}</h3>
 
               <button
                 className="modal-close"
                 onClick={fecharModal}
-                aria-label="Fechar"
                 type="button"
               >
                 ×
@@ -574,15 +448,9 @@ function Insumos() {
               <form onSubmit={salvarItem}>
                 <div className="form-grid">
                   <div className="form-group">
-                    <label
-                      className="form-label"
-                      htmlFor="id"
-                    >
-                      ID do item *
-                    </label>
+                    <label className="form-label">ID do item *</label>
 
                     <input
-                      id="id"
                       name="id"
                       type="text"
                       className="form-control"
@@ -595,15 +463,9 @@ function Insumos() {
                   </div>
 
                   <div className="form-group">
-                    <label
-                      className="form-label"
-                      htmlFor="descricao"
-                    >
-                      Descrição *
-                    </label>
+                    <label className="form-label">Descrição *</label>
 
                     <input
-                      id="descricao"
                       name="descricao"
                       type="text"
                       className="form-control"
@@ -615,21 +477,16 @@ function Insumos() {
                   </div>
 
                   <div className="form-group">
-                    <label
-                      className="form-label"
-                      htmlFor="estoqueInicial"
-                    >
+                    <label className="form-label">
                       Estoque inicial *
                     </label>
 
                     <input
-                      id="estoqueInicial"
                       name="estoqueInicial"
                       type="number"
                       min="0"
                       step="1"
                       className="form-control"
-                      placeholder="0"
                       value={form.estoqueInicial}
                       onChange={handleChange}
                       required
@@ -644,11 +501,11 @@ function Insumos() {
                   <span>💡</span>
 
                   <div>
-                    <strong>Estoque atual</strong>
+                    <strong>Controle automático</strong>
 
                     <p style={{ marginTop: "4px" }}>
-                      O estoque atual será calculado automaticamente
-                      com base no estoque inicial, entradas e saídas.
+                      O estoque atual é calculado pelo banco com base no
+                      estoque inicial, entradas e saídas.
                     </p>
                   </div>
                 </div>
@@ -662,10 +519,7 @@ function Insumos() {
                     Cancelar
                   </button>
 
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                  >
+                  <button type="submit" className="btn btn-primary">
                     {itemEditando
                       ? "Salvar alterações"
                       : "Cadastrar insumo"}

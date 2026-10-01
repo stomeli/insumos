@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "../supabase.js"; // Certifique-se de ajustar o caminho da sua instância do Supabase
+import { supabase } from "../supabase.js";
 
 function Saidas() {
   const agora = new Date();
@@ -30,11 +30,12 @@ function Saidas() {
 
   const carregarDados = async () => {
     try {
-      const [insumosRes, lideresRes, colaboradoresRes] = await Promise.all([
-        supabase.from("insumos").select("*"),
-        supabase.from("lideres").select("*"),
-        supabase.from("colaboradores").select("*"),
-      ]);
+      const [insumosRes, lideresRes, colaboradoresRes] =
+        await Promise.all([
+          supabase.from("insumos").select("*"),
+          supabase.from("lideres").select("*"),
+          supabase.from("colaboradores").select("*"),
+        ]);
 
       if (insumosRes.error) throw insumosRes.error;
       if (lideresRes.error) throw lideresRes.error;
@@ -45,20 +46,31 @@ function Saidas() {
       setColaboradores(colaboradoresRes.data || []);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
-      setMensagem("Erro ao carregar informações do banco de dados.");
+
+      setMensagem(
+        error?.message
+          ? `Erro ao carregar informações: ${error.message}`
+          : "Erro ao carregar informações do banco de dados."
+      );
     }
   };
 
   const itemSelecionado = insumos.find(
-    (item) => String(item.id) === String(form.itemId)
+    (item) =>
+      String(item.id).trim().toLowerCase() ===
+      String(form.itemId).trim().toLowerCase()
   );
 
   const liderSelecionado = lideres.find(
-    (lider) => String(lider.id) === String(form.liderId)
+    (lider) =>
+      String(lider.id).trim().toLowerCase() ===
+      String(form.liderId).trim().toLowerCase()
   );
 
   const colaboradorSelecionado = colaboradores.find(
-    (colaborador) => String(colaborador.id) === String(form.colaboradorId)
+    (colaborador) =>
+      String(colaborador.id).trim().toLowerCase() ===
+      String(form.colaboradorId).trim().toLowerCase()
   );
 
   const estoqueAtual = Number(
@@ -110,63 +122,83 @@ function Saidas() {
 
     const quantidade = Number(form.quantidade);
 
-    if (quantidade <= 0) {
+    if (!Number.isFinite(quantidade) || quantidade <= 0) {
       setMensagem("A quantidade deve ser maior que zero.");
       return;
     }
 
     if (quantidade > estoqueAtual) {
-      setMensagem(`Estoque insuficiente. Estoque atual: ${estoqueAtual}.`);
+      setMensagem(
+        `Estoque insuficiente. Estoque atual: ${estoqueAtual}.`
+      );
       return;
     }
 
-    setLoading(true);
-
     try {
-      // 1. Registra a nova saída no Supabase
-      const novaSaida = {
-        data: form.data,
-        hora: form.hora,
-        lider_id: form.liderId,
-        lider_nome: liderSelecionado.nome,
-        colaborador_id: form.colaboradorId,
-        colaborador_nome: colaboradorSelecionado.nome,
-        item_id: form.itemId,
-        descricao: itemSelecionado.descricao,
-        quantidade,
-      };
+      setLoading(true);
+      setMensagem("");
 
-      const { error: saidaError } = await supabase
-        .from("saidas")
-        .insert([novaSaida]);
+      // ========================================================
+      // REGISTRA A SAÍDA ATRAVÉS DA RPC
+      // ========================================================
+      //
+      // A função no PostgreSQL:
+      //
+      // 1. Valida o item
+      // 2. Verifica o estoque
+      // 3. Valida o líder
+      // 4. Valida o colaborador
+      // 5. Registra a saída
+      // 6. Atualiza o estoque
+      //
+      // Tudo dentro da mesma transação.
+      //
+      const { data, error } = await supabase.rpc("registrar_saida", {
+        p_data: form.data,
+        p_hora: form.hora,
+        p_lider_id: liderSelecionado.id,
+        p_colaborador_id: colaboradorSelecionado.id,
+        p_item_id: itemSelecionado.id,
+        p_quantidade: quantidade,
+      });
 
-      if (saidaError) throw saidaError;
+      if (error) {
+        throw error;
+      }
 
-      // 2. Atualiza o estoque no Supabase
-      const novoTotalSaidas =
-        Number(itemSelecionado.total_saidas || 0) + quantidade;
-      const novoEstoqueAtual = estoqueAtual - quantidade;
+      if (!data || data.sucesso !== true) {
+        throw new Error("Não foi possível registrar a saída.");
+      }
 
-      const { error: insumoError } = await supabase
-        .from("insumos")
-        .update({
-          total_saidas: novoTotalSaidas,
-          estoque_atual: novoEstoqueAtual,
-        })
-        .eq("id", form.itemId);
+      // Dados atualizados retornados pela RPC
+      const insumoAtualizado = data.insumo;
 
-      if (insumoError) throw insumoError;
+      // Atualiza o estado local
+      setInsumos((prev) =>
+        prev.map((item) =>
+          String(item.id) === String(insumoAtualizado.id)
+            ? {
+                ...item,
+                estoque_atual: insumoAtualizado.estoque_atual,
+                total_entradas: insumoAtualizado.total_entradas,
+                total_saidas: insumoAtualizado.total_saidas,
+              }
+            : item
+        )
+      );
 
       setMensagem("Saída registrada com sucesso.");
-
-      // Recarrega os dados atualizados do banco
-      await carregarDados();
 
       // Limpa formulário
       limparFormulario();
     } catch (error) {
       console.error("Erro ao registrar saída:", error);
-      setMensagem("Ocorreu um erro ao registrar a saída. Tente novamente.");
+
+      setMensagem(
+        error?.message
+          ? `Erro ao registrar saída: ${error.message}`
+          : "Ocorreu um erro ao registrar a saída. Tente novamente."
+      );
     } finally {
       setLoading(false);
     }
@@ -201,6 +233,7 @@ function Saidas() {
           <div>
             <h3>Nova saída</h3>
           </div>
+
           <span className="badge badge-danger">Saída</span>
         </div>
 
@@ -211,6 +244,7 @@ function Saidas() {
                 <label className="form-label" htmlFor="data">
                   Data *
                 </label>
+
                 <input
                   id="data"
                   name="data"
@@ -226,6 +260,7 @@ function Saidas() {
                 <label className="form-label" htmlFor="hora">
                   Hora *
                 </label>
+
                 <input
                   id="hora"
                   name="hora"
@@ -241,6 +276,7 @@ function Saidas() {
                 <label className="form-label" htmlFor="liderId">
                   ID do líder *
                 </label>
+
                 <input
                   id="liderId"
                   name="liderId"
@@ -254,7 +290,10 @@ function Saidas() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Nome do líder</label>
+                <label className="form-label">
+                  Nome do líder
+                </label>
+
                 <input
                   type="text"
                   className="form-control"
@@ -265,9 +304,13 @@ function Saidas() {
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="colaboradorId">
+                <label
+                  className="form-label"
+                  htmlFor="colaboradorId"
+                >
                   ID do colaborador *
                 </label>
+
                 <input
                   id="colaboradorId"
                   name="colaboradorId"
@@ -281,7 +324,10 @@ function Saidas() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Nome do colaborador</label>
+                <label className="form-label">
+                  Nome do colaborador
+                </label>
+
                 <input
                   type="text"
                   className="form-control"
@@ -295,6 +341,7 @@ function Saidas() {
                 <label className="form-label" htmlFor="itemId">
                   ID do item *
                 </label>
+
                 <input
                   id="itemId"
                   name="itemId"
@@ -308,7 +355,10 @@ function Saidas() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Descrição do item</label>
+                <label className="form-label">
+                  Descrição do item
+                </label>
+
                 <input
                   type="text"
                   className="form-control"
@@ -319,9 +369,13 @@ function Saidas() {
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="quantidade">
+                <label
+                  className="form-label"
+                  htmlFor="quantidade"
+                >
                   Quantidade *
                 </label>
+
                 <input
                   id="quantidade"
                   name="quantidade"
@@ -338,7 +392,10 @@ function Saidas() {
 
               {itemSelecionado && (
                 <div className="form-group">
-                  <label className="form-label">Estoque disponível</label>
+                  <label className="form-label">
+                    Estoque disponível
+                  </label>
+
                   <input
                     type="text"
                     className="form-control"
@@ -377,30 +434,40 @@ function Saidas() {
                 className="btn btn-danger"
                 disabled={loading}
               >
-                {loading ? "Salvando..." : "📤 Registrar saída"}
+                {loading
+                  ? "Salvando..."
+                  : "📤 Registrar saída"}
               </button>
             </div>
           </form>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: "18px" }}>
+      <div
+        className="card"
+        style={{ marginTop: "18px" }}
+      >
         <div className="card-body">
           <div className="alert alert-warning">
             <span>⚠️</span>
+
             <div>
               <strong>Controle de estoque</strong>
+
               <p style={{ marginTop: "4px" }}>
-                O sistema verifica o estoque disponível antes de registrar a
-                retirada.
+                O sistema verifica o estoque disponível antes de
+                registrar a retirada.
               </p>
+
               <p style={{ marginTop: "5px" }}>
-                A descrição do item, o nome do colaborador e o nome do líder são
-                preenchidos automaticamente pelos cadastros.
+                A descrição do item, o nome do colaborador e o nome
+                do líder são preenchidos automaticamente pelos
+                cadastros.
               </p>
+
               <p style={{ marginTop: "5px" }}>
-                Não é permitido retirar uma quantidade maior que o estoque
-                disponível.
+                Não é permitido retirar uma quantidade maior que o
+                estoque disponível.
               </p>
             </div>
           </div>

@@ -130,78 +130,82 @@ function Saidas() {
     setMensagem("");
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+const handleSubmit = async (event) => {
+  event.preventDefault();
 
-    if (
-      !form.data ||
-      !form.hora ||
-      !form.liderId ||
-      !form.colaboradorId ||
-      !form.itemId ||
-      !form.quantidade
-    ) {
-      setMensagem("Preencha todos os campos obrigatórios.");
-      return;
+  if (
+    !form.data ||
+    !form.hora ||
+    !form.liderId ||
+    !form.colaboradorId ||
+    !form.itemId ||
+    !form.quantidade
+  ) {
+    setMensagem("Preencha todos os campos obrigatórios.");
+    return;
+  }
+
+  if (!liderSelecionado) {
+    setMensagem("O ID do líder não foi encontrado.");
+    return;
+  }
+
+  if (!colaboradorSelecionado) {
+    setMensagem("O ID do colaborador não foi encontrado.");
+    return;
+  }
+
+  if (!itemSelecionado) {
+    setMensagem("O ID do item não foi encontrado.");
+    return;
+  }
+
+  const quantidade = Number(form.quantidade);
+
+  if (!Number.isInteger(quantidade) || quantidade <= 0) {
+    setMensagem("Informe uma quantidade inteira maior que zero.");
+    return;
+  }
+
+  const estoqueAtual = Number(itemSelecionado.estoque_atual || 0);
+
+  if (quantidade > estoqueAtual) {
+    setMensagem(
+      `Estoque insuficiente. Estoque atual: ${estoqueAtual}.`
+    );
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const { error } = await supabase.rpc("registrar_saida", {
+      p_item_id: String(itemSelecionado.id),
+      p_quantidade: quantidade,
+      p_lider_id: String(liderSelecionado.id),
+      p_colaborador_id: String(colaboradorSelecionado.id),
+      p_data: form.data,
+      p_hora: form.hora,
+    });
+
+    if (error) {
+      throw error;
     }
 
-    if (!liderSelecionado) {
-      setMensagem("O ID do líder não foi encontrado.");
-      return;
-    }
+    setMensagem("Saída registrada com sucesso.");
 
-    if (!colaboradorSelecionado) {
-      setMensagem("O ID do colaborador não foi encontrado.");
-      return;
-    }
+    await carregarDados();
+    limparFormulario();
+  } catch (error) {
+    console.error("Erro ao registrar saída:", error);
 
-    if (!itemSelecionado) {
-      setMensagem("O ID do item não foi encontrado.");
-      return;
-    }
-
-    const quantidade = Number(form.quantidade);
-
-    if (!Number.isInteger(quantidade) || quantidade <= 0) {
-      setMensagem("Informe uma quantidade inteira maior que zero.");
-      return;
-    }
-
-    if (quantidade > estoqueAtual) {
-      setMensagem(
-        `Estoque insuficiente. Estoque atual: ${estoqueAtual}.`
-      );
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const { error } = await supabase.rpc("registrar_saida", {
-        p_data: form.data,
-        p_hora: form.hora,
-        p_lider_id: liderSelecionado.id,
-        p_colaborador_id: colaboradorSelecionado.id,
-        p_item_id: itemSelecionado.id,
-        p_quantidade: quantidade,
-      });
-
-      if (error) throw error;
-
-      setMensagem("Saída registrada com sucesso.");
-
-      await carregarDados();
-      limparFormulario();
-    } catch (error) {
-      console.error(error);
-
-      setMensagem(
-        error?.message || "Erro ao registrar saída."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    setMensagem(
+      error?.message || "Erro ao registrar saída."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div>

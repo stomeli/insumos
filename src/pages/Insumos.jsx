@@ -153,13 +153,21 @@ function Insumos() {
       }
 
       const { error } = await supabase.from("insumos").insert({
-        id,
-        descricao,
-        estoque_inicial: estoqueInicial,
-        total_entradas: 0,
-        total_saidas: 0,
-        estoque_atual: estoqueInicial,
-      });
+  id,
+  descricao,
+  estoque_inicial: estoqueInicial,
+});
+
+if (error) {
+  console.error("Erro Supabase ao cadastrar insumo:", error);
+
+  alert(
+    `Erro ao cadastrar o insumo:\n\n${error.message || "Erro desconhecido"}`
+  );
+
+  return;
+}
+
 
       if (error) {
         console.error(error);

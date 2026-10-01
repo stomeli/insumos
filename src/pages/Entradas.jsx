@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase.js";
 
 function Entradas() {
+  const hoje = new Date().toISOString().split("T")[0];
+
   const [form, setForm] = useState({
-    data: new Date().toISOString().split("T")[0],
+    data: hoje,
     itemId: "",
     quantidade: "",
     liderId: "",
@@ -15,64 +17,55 @@ function Entradas() {
   const [loading, setLoading] = useState(false);
   const [loadingDados, setLoadingDados] = useState(true);
 
-  // Carrega os insumos e líderes do Supabase ao montar o componente
-  useEffect(() => {
-    async function carregarDados() {
-      try {
-        setLoadingDados(true);
-        setMensagem("");
+  const carregarDados = async () => {
+    setLoadingDados(true);
 
-        const [resInsumos, resLideres] = await Promise.all([
-          supabase.from("insumos").select("*"),
-          supabase.from("lideres").select("*"),
-        ]);
+    const [resInsumos, resLideres] = await Promise.all([
+      supabase
+        .from("insumos")
+        .select("*")
+        .order("descricao", { ascending: true }),
 
-        if (resInsumos.error) {
-          throw resInsumos.error;
-        }
+      supabase
+        .from("lideres")
+        .select("*")
+        .order("nome", { ascending: true }),
+    ]);
 
-        if (resLideres.error) {
-          throw resLideres.error;
-        }
-
-        setInsumos(resInsumos.data || []);
-        setLideres(resLideres.data || []);
-      } catch (error) {
-        console.error("Erro ao carregar dados:", error);
-
-        setMensagem(
-          error?.message
-            ? `Erro ao carregar dados: ${error.message}`
-            : "Erro ao carregar insumos e líderes do banco de dados."
-        );
-      } finally {
-        setLoadingDados(false);
-      }
+    if (resInsumos.error || resLideres.error) {
+      console.error(resInsumos.error || resLideres.error);
+      setMensagem("Erro ao carregar dados.");
+    } else {
+      setInsumos(resInsumos.data || []);
+      setLideres(resLideres.data || []);
     }
 
+    setLoadingDados(false);
+  };
+
+  useEffect(() => {
     carregarDados();
   }, []);
 
-  // Busca insensível a maiúsculas/minúsculas
-  const itemSelecionado = useMemo(() => {
-    if (!form.itemId) return null;
+  const itemSelecionado = useMemo(
+    () =>
+      insumos.find(
+        (item) =>
+          String(item.id).toLowerCase() ===
+          String(form.itemId).trim().toLowerCase()
+      ),
+    [insumos, form.itemId]
+  );
 
-    return insumos.find(
-      (item) =>
-        String(item.id).trim().toLowerCase() ===
-        String(form.itemId).trim().toLowerCase()
-    );
-  }, [insumos, form.itemId]);
-
-  const liderSelecionado = useMemo(() => {
-    if (!form.liderId) return null;
-
-    return lideres.find(
-      (lider) =>
-        String(lider.id).trim().toLowerCase() ===
-        String(form.liderId).trim().toLowerCase()
-    );
-  }, [lideres, form.liderId]);
+  const liderSelecionado = useMemo(
+    () =>
+      lideres.find(
+        (lider) =>
+          String(lider.id).toLowerCase() ===
+          String(form.liderId).trim().toLowerCase()
+      ),
+    [lideres, form.liderId]
+  );
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -85,98 +78,6 @@ function Entradas() {
     setMensagem("");
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
-    if (!form.data || !form.itemId || !form.quantidade || !form.liderId) {
-      setMensagem("Preencha todos os campos obrigatórios.");
-      return;
-    }
-
-    if (!itemSelecionado) {
-      setMensagem("O ID do item não foi encontrado no cadastro.");
-      return;
-    }
-
-    if (!liderSelecionado) {
-      setMensagem("O ID do líder não foi encontrado no cadastro.");
-      return;
-    }
-
-    const quantidade = Number(form.quantidade);
-
-    if (!Number.isFinite(quantidade) || quantidade <= 0) {
-      setMensagem("Informe uma quantidade válida e maior que zero.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setMensagem("");
-
-      // Registra a entrada através da RPC do Supabase.
-      //
-      // A RPC faz:
-      // 1. Validação do item
-      // 2. Validação do líder
-      // 3. Registro em "entradas"
-      // 4. Atualização do estoque em "insumos"
-      //
-      // Tudo dentro da mesma transação no PostgreSQL.
-      const { data, error } = await supabase.rpc("registrar_entrada", {
-        p_data: form.data,
-        p_item_id: itemSelecionado.id,
-        p_quantidade: quantidade,
-        p_lider_id: liderSelecionado.id,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data || data.sucesso !== true) {
-        throw new Error("Não foi possível registrar a entrada.");
-      }
-
-      // Dados atualizados retornados pela RPC
-      const insumoAtualizado = data.insumo;
-
-      // Atualiza o estado local do insumo
-      setInsumos((prev) =>
-        prev.map((item) =>
-          String(item.id) === String(insumoAtualizado.id)
-            ? {
-                ...item,
-                estoque_atual: insumoAtualizado.estoque_atual,
-                total_entradas: insumoAtualizado.total_entradas,
-                total_saidas: insumoAtualizado.total_saidas,
-              }
-            : item
-        )
-      );
-
-      setMensagem("Entrada registrada com sucesso!");
-
-      // Limpa o formulário após registrar
-      setForm({
-        data: new Date().toISOString().split("T")[0],
-        itemId: "",
-        quantidade: "",
-        liderId: "",
-      });
-    } catch (error) {
-      console.error("Erro ao registrar entrada:", error);
-
-      setMensagem(
-        error?.message
-          ? `Erro ao registrar entrada: ${error.message}`
-          : "Erro ao registrar entrada no Supabase. Tente novamente."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const limparFormulario = () => {
     setForm({
       data: new Date().toISOString().split("T")[0],
@@ -186,6 +87,62 @@ function Entradas() {
     });
 
     setMensagem("");
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (
+      !form.data ||
+      !form.itemId ||
+      !form.quantidade ||
+      !form.liderId
+    ) {
+      setMensagem("Preencha todos os campos obrigatórios.");
+      return;
+    }
+
+    if (!itemSelecionado) {
+      setMensagem("O ID do item não foi encontrado.");
+      return;
+    }
+
+    if (!liderSelecionado) {
+      setMensagem("O ID do líder não foi encontrado.");
+      return;
+    }
+
+    const quantidade = Number(form.quantidade);
+
+    if (!Number.isInteger(quantidade) || quantidade <= 0) {
+      setMensagem("Informe uma quantidade inteira maior que zero.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.rpc("registrar_entrada", {
+        p_data: form.data,
+        p_item_id: itemSelecionado.id,
+        p_quantidade: quantidade,
+        p_lider_id: liderSelecionado.id,
+      });
+
+      if (error) throw error;
+
+      setMensagem("Entrada registrada com sucesso!");
+
+      await carregarDados();
+      limparFormulario();
+    } catch (error) {
+      console.error(error);
+      setMensagem(
+        error?.message || "Erro ao registrar entrada."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -213,12 +170,9 @@ function Entradas() {
             <form onSubmit={handleSubmit}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label className="form-label" htmlFor="data">
-                    Data *
-                  </label>
+                  <label className="form-label">Data *</label>
 
                   <input
-                    id="data"
                     name="data"
                     type="date"
                     className="form-control"
@@ -229,12 +183,9 @@ function Entradas() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="itemId">
-                    ID do item *
-                  </label>
+                  <label className="form-label">ID do item *</label>
 
                   <input
-                    id="itemId"
                     name="itemId"
                     type="text"
                     className="form-control"
@@ -258,12 +209,9 @@ function Entradas() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="quantidade">
-                    Quantidade *
-                  </label>
+                  <label className="form-label">Quantidade *</label>
 
                   <input
-                    id="quantidade"
                     name="quantidade"
                     type="number"
                     min="1"
@@ -277,12 +225,9 @@ function Entradas() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="liderId">
-                    ID do líder *
-                  </label>
+                  <label className="form-label">ID do líder *</label>
 
                   <input
-                    id="liderId"
                     name="liderId"
                     type="text"
                     className="form-control"
@@ -309,7 +254,7 @@ function Entradas() {
               {mensagem && (
                 <div
                   className={
-                    mensagem.includes("sucesso")
+                    mensagem.toLowerCase().includes("sucesso")
                       ? "alert alert-success"
                       : "alert alert-warning"
                   }
@@ -339,28 +284,6 @@ function Entradas() {
               </div>
             </form>
           )}
-        </div>
-      </div>
-
-      <div className="card" style={{ marginTop: "18px" }}>
-        <div className="card-body">
-          <div className="alert alert-warning">
-            <span>💡</span>
-
-            <div>
-              <strong>Como funciona</strong>
-
-              <p style={{ marginTop: "4px" }}>
-                Informe o ID do item e o sistema buscará automaticamente a
-                descrição cadastrada.
-              </p>
-
-              <p style={{ marginTop: "5px" }}>
-                O mesmo acontece com o ID do líder. Ao registrar a entrada, a
-                quantidade é adicionada ao estoque atual no Supabase.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

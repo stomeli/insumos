@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "../supabase.js";
 
 const ITENS_POR_PAGINA = 40;
@@ -9,45 +9,49 @@ function Historico() {
   const [busca, setBusca] = useState("");
   const [paginaAtual, setPaginaAtual] = useState(1);
 
-  const carregarHistorico = async () => {
+  const carregarHistorico = useCallback(async () => {
     setLoading(true);
 
     const { data, error } = await supabase
       .from("historico")
       .select("*")
       .order("data", { ascending: false })
-      .order("hora", { ascending: false });
+      .order("hora", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error(error);
-      alert("Erro ao carregar histórico.");
+      console.error("Erro ao carregar histórico:", error);
+      alert(error.message || "Erro ao carregar histórico.");
       setRegistros([]);
     } else {
       setRegistros(data || []);
     }
 
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     carregarHistorico();
-  }, []);
+  }, [carregarHistorico]);
 
   const filtrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
 
-    if (!termo) return registros;
+    if (!termo) {
+      return registros;
+    }
 
     return registros.filter((registro) => {
       const texto = [
         registro.tipo,
         registro.colaborador_id,
-        registro.colaborador_nome,
+        registro.nome_colaborador,
         registro.item_id,
-        registro.descricao,
+        registro.descricao_item,
         registro.lider_id,
-        registro.lider_nome,
+        registro.nome_lider,
       ]
+        .filter((valor) => valor !== null && valor !== undefined)
         .join(" ")
         .toLowerCase();
 
@@ -81,24 +85,62 @@ function Historico() {
   };
 
   const excluirRegistro = async (registro) => {
+    const tipo = String(registro.tipo || "").toLowerCase();
+
+    const nomeTipo =
+      tipo === "entrada"
+        ? "entrada"
+        : "saída";
+
     const confirmar = window.confirm(
-      `Deseja excluir esta ${registro.tipo.toLowerCase()}?`
+      `Deseja excluir esta ${nomeTipo}?`
     );
 
-    if (!confirmar) return;
+    if (!confirmar) {
+      return;
+    }
 
-    const { error } = await supabase.rpc(
-      registro.tipo === "Entrada"
-        ? "excluir_entrada"
-        : "excluir_saida",
-      {
-        p_id: registro.id_original,
-      }
-    );
+    if (!registro.id) {
+      alert("Não foi possível identificar o registro.");
+      return;
+    }
+
+    const id = Number(registro.id);
+
+    if (!Number.isInteger(id)) {
+      alert("ID do registro inválido.");
+      return;
+    }
+
+    let error = null;
+
+    if (tipo === "entrada") {
+      const resultado = await supabase
+        .from("entradas")
+        .delete()
+        .eq("id", id);
+
+      error = resultado.error;
+    } else if (tipo === "saida") {
+      const resultado = await supabase
+        .from("saidas")
+        .delete()
+        .eq("id", id);
+
+      error = resultado.error;
+    } else {
+      alert("Tipo de movimentação inválido.");
+      return;
+    }
 
     if (error) {
-      console.error(error);
-      alert(error.message || "Erro ao excluir movimentação.");
+      console.error("Erro ao excluir movimentação:", error);
+
+      alert(
+        error.message ||
+          "Erro ao excluir movimentação."
+      );
+
       return;
     }
 
@@ -106,7 +148,10 @@ function Historico() {
   };
 
   const mudarPagina = (pagina) => {
-    if (pagina >= 1 && pagina <= totalPaginas) {
+    if (
+      pagina >= 1 &&
+      pagina <= totalPaginas
+    ) {
       setPaginaAtual(pagina);
     }
   };
@@ -116,6 +161,7 @@ function Historico() {
       <div className="page-header">
         <div>
           <h2>Histórico</h2>
+
           <p>
             Consulte todas as entradas e saídas de estoque.
           </p>
@@ -125,7 +171,9 @@ function Historico() {
       <div className="toolbar">
         <div className="toolbar-left">
           <div className="search-box">
-            <span className="search-icon">🔎</span>
+            <span className="search-icon">
+              🔎
+            </span>
 
             <input
               type="text"
@@ -137,7 +185,12 @@ function Historico() {
         </div>
 
         <div className="toolbar-right">
-          <span style={{ color: "#666", fontSize: "11px" }}>
+          <span
+            style={{
+              color: "#666",
+              fontSize: "11px",
+            }}
+          >
             {filtrados.length} registro(s)
           </span>
         </div>
@@ -179,7 +232,9 @@ function Historico() {
                 <tr>
                   <td colSpan="11">
                     <div className="empty-state">
-                      <div className="empty-state-icon">📋</div>
+                      <div className="empty-state-icon">
+                        📋
+                      </div>
 
                       <h3>
                         {busca
@@ -196,74 +251,104 @@ function Historico() {
                   </td>
                 </tr>
               ) : (
-                registrosPagina.map((registro) => (
-                  <tr key={`${registro.tipo}-${registro.id_original}`}>
-                    <td>
-                      {registro.tipo === "Entrada" ? (
-                        <span className="badge badge-success">
-                          Entrada
-                        </span>
-                      ) : (
-                        <span className="badge badge-danger">
-                          Saída
-                        </span>
-                      )}
-                    </td>
+                registrosPagina.map((registro) => {
+                  const tipo = String(
+                    registro.tipo || ""
+                  ).toLowerCase();
 
-                    <td>{registro.data}</td>
+                  const ehEntrada =
+                    tipo === "entrada";
 
-                    <td>{registro.hora || "-"}</td>
+                  return (
+                    <tr
+                      key={`${tipo}-${registro.id}`}
+                    >
+                      <td>
+                        {ehEntrada ? (
+                          <span className="badge badge-success">
+                            Entrada
+                          </span>
+                        ) : (
+                          <span className="badge badge-danger">
+                            Saída
+                          </span>
+                        )}
+                      </td>
 
-                    <td>
-                      <strong>
-                        {registro.colaborador_id || "-"}
-                      </strong>
-                    </td>
+                      <td>
+                        {registro.data || "-"}
+                      </td>
 
-                    <td>
-                      {registro.colaborador_nome || "-"}
-                    </td>
+                      <td>
+                        {registro.hora || "-"}
+                      </td>
 
-                    <td>
-                      <strong>{registro.item_id}</strong>
-                    </td>
+                      <td>
+                        <strong>
+                          {registro.colaborador_id ||
+                            "-"}
+                        </strong>
+                      </td>
 
-                    <td>{registro.descricao}</td>
+                      <td>
+                        {registro.nome_colaborador ||
+                          "-"}
+                      </td>
 
-                    <td>
-                      <span
-                        className={
-                          registro.tipo === "Entrada"
-                            ? "badge badge-success"
-                            : "badge badge-danger"
-                        }
-                      >
-                        {registro.tipo === "Entrada" ? "+" : "-"}
-                        {registro.quantidade}
-                      </span>
-                    </td>
+                      <td>
+                        <strong>
+                          {registro.item_id || "-"}
+                        </strong>
+                      </td>
 
-                    <td>
-                      <strong>{registro.lider_id}</strong>
-                    </td>
+                      <td>
+                        {registro.descricao_item ||
+                          "-"}
+                      </td>
 
-                    <td>{registro.lider_nome}</td>
-
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          className="icon-button danger"
-                          title="Excluir"
-                          onClick={() =>
-                            excluirRegistro(registro)
+                      <td>
+                        <span
+                          className={
+                            ehEntrada
+                              ? "badge badge-success"
+                              : "badge badge-danger"
                           }
                         >
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {ehEntrada ? "+" : "-"}
+                          {registro.quantidade ?? 0}
+                        </span>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {registro.lider_id ||
+                            "-"}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {registro.nome_lider ||
+                          "-"}
+                      </td>
+
+                      <td>
+                        <div className="action-buttons">
+                          <button
+                            className="icon-button danger"
+                            title="Excluir"
+                            onClick={() =>
+                              excluirRegistro(
+                                registro
+                              )
+                            }
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -280,40 +365,74 @@ function Historico() {
             <button
               className="pagination-button"
               disabled={paginaAtual === 1}
-              onClick={() => mudarPagina(paginaAtual - 1)}
+              onClick={() =>
+                mudarPagina(paginaAtual - 1)
+              }
             >
               ‹
             </button>
 
             {Array.from(
-              { length: totalPaginas },
+              {
+                length: totalPaginas,
+              },
               (_, index) => index + 1
             )
               .filter((pagina) => {
-                if (totalPaginas <= 5) return true;
+                if (totalPaginas <= 5) {
+                  return true;
+                }
 
                 return (
                   pagina === 1 ||
                   pagina === totalPaginas ||
-                  Math.abs(pagina - paginaAtual) <= 1
+                  Math.abs(
+                    pagina - paginaAtual
+                  ) <= 1
                 );
               })
-              .map((pagina) => (
-                <button
-                  key={pagina}
-                  className={`pagination-button ${
-                    paginaAtual === pagina ? "active" : ""
-                  }`}
-                  onClick={() => mudarPagina(pagina)}
-                >
-                  {pagina}
-                </button>
-              ))}
+              .map((pagina, index, paginasVisiveis) => {
+                const anterior =
+                  paginasVisiveis[index - 1];
+
+                return (
+                  <span key={pagina}>
+                    {anterior &&
+                      pagina - anterior > 1 && (
+                        <span
+                          style={{
+                            margin: "0 4px",
+                            color: "#888",
+                          }}
+                        >
+                          ...
+                        </span>
+                      )}
+
+                    <button
+                      className={`pagination-button ${
+                        paginaAtual === pagina
+                          ? "active"
+                          : ""
+                      }`}
+                      onClick={() =>
+                        mudarPagina(pagina)
+                      }
+                    >
+                      {pagina}
+                    </button>
+                  </span>
+                );
+              })}
 
             <button
               className="pagination-button"
-              disabled={paginaAtual === totalPaginas}
-              onClick={() => mudarPagina(paginaAtual + 1)}
+              disabled={
+                paginaAtual === totalPaginas
+              }
+              onClick={() =>
+                mudarPagina(paginaAtual + 1)
+              }
             >
               ›
             </button>

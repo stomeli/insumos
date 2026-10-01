@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { supabase } from "../supabase.js";
 
 const ITENS_POR_PAGINA = 40;
 
 function Colaboradores() {
   const [colaboradores, setColaboradores] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const [carregando, setCarregando] = useState(true);
 
   const [modalAberto, setModalAberto] = useState(false);
   const [colaboradorEditando, setColaboradorEditando] = useState(null);
@@ -17,53 +17,60 @@ function Colaboradores() {
     nome: "",
   });
 
-  // Carregar colaboradores do Supabase ao montar o componente
-  useEffect(() => {
-    carregarColaboradores();
-  }, []);
-
   const carregarColaboradores = async () => {
-    setCarregando(true);
+    setLoading(true);
+
     const { data, error } = await supabase
       .from("colaboradores")
       .select("*")
       .order("nome", { ascending: true });
 
     if (error) {
-      console.error("Erro ao carregar colaboradores:", error);
-      alert("Erro ao carregar colaboradores: " + error.message);
+      console.error(error);
+      alert("Erro ao carregar colaboradores.");
+      setColaboradores([]);
     } else {
       setColaboradores(data || []);
     }
-    setCarregando(false);
+
+    setLoading(false);
   };
 
-  const colaboradoresFiltrados = useMemo(() => {
+  useEffect(() => {
+    carregarColaboradores();
+  }, []);
+
+  const filtrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
 
-    if (!termo) {
-      return colaboradores;
-    }
+    if (!termo) return colaboradores;
 
-    return colaboradores.filter((colaborador) => {
-      return (
-        String(colaborador.id).toLowerCase().includes(termo) ||
-        String(colaborador.nome).toLowerCase().includes(termo)
-      );
-    });
+    return colaboradores.filter((colaborador) =>
+      `${colaborador.id} ${colaborador.nome}`
+        .toLowerCase()
+        .includes(termo)
+    );
   }, [colaboradores, busca]);
 
   const totalPaginas = Math.max(
     1,
-    Math.ceil(colaboradoresFiltrados.length / ITENS_POR_PAGINA)
+    Math.ceil(filtrados.length / ITENS_POR_PAGINA)
   );
 
-  const colaboradoresPagina = useMemo(() => {
-    const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
-    const fim = inicio + ITENS_POR_PAGINA;
+  useEffect(() => {
+    if (paginaAtual > totalPaginas) {
+      setPaginaAtual(totalPaginas);
+    }
+  }, [paginaAtual, totalPaginas]);
 
-    return colaboradoresFiltrados.slice(inicio, fim);
-  }, [colaboradoresFiltrados, paginaAtual]);
+  const pagina = useMemo(() => {
+    const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+
+    return filtrados.slice(
+      inicio,
+      inicio + ITENS_POR_PAGINA
+    );
+  }, [filtrados, paginaAtual]);
 
   const abrirNovo = () => {
     setColaboradorEditando(null);
@@ -76,10 +83,12 @@ function Colaboradores() {
 
   const abrirEdicao = (colaborador) => {
     setColaboradorEditando(colaborador);
+
     setForm({
       id: colaborador.id,
       nome: colaborador.nome,
     });
+
     setModalAberto(true);
   };
 
@@ -90,104 +99,93 @@ function Colaboradores() {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
+
     setForm((prev) => ({
       ...prev,
       [name]: value,
     }));
   };
 
-  const salvarColaborador = async (event) => {
+  const salvar = async (event) => {
     event.preventDefault();
 
     const id = form.id.trim();
     const nome = form.nome.trim();
 
     if (!id || !nome) {
+      alert("Preencha todos os campos.");
       return;
     }
 
     if (colaboradorEditando) {
-      // Atualizar no Supabase
       const { error } = await supabase
         .from("colaboradores")
         .update({ nome })
         .eq("id", colaboradorEditando.id);
 
       if (error) {
-        alert("Erro ao atualizar colaborador: " + error.message);
+        console.error(error);
+        alert("Erro ao atualizar colaborador.");
         return;
       }
-
-      setColaboradores((prev) =>
-        prev.map((c) => (c.id === colaboradorEditando.id ? { ...c, nome } : c))
-      );
     } else {
-      // Verificar se já existe antes de inserir
-      const idExistente = colaboradores.some(
-        (c) => String(c.id).toLowerCase() === id.toLowerCase()
-      );
+      const { data: existente, error: consultaError } =
+        await supabase
+          .from("colaboradores")
+          .select("id")
+          .eq("id", id)
+          .maybeSingle();
 
-      if (idExistente) {
-        alert("Já existe um colaborador cadastrado com este ID.");
+      if (consultaError) {
+        console.error(consultaError);
+        alert("Erro ao verificar ID.");
         return;
       }
 
-      // Inserir no Supabase
+      if (existente) {
+        alert("Já existe um colaborador com este ID.");
+        return;
+      }
+
       const { error } = await supabase
         .from("colaboradores")
-        .insert([{ id, nome }]);
+        .insert({
+          id,
+          nome,
+        });
 
       if (error) {
-        alert("Erro ao cadastrar colaborador: " + error.message);
+        console.error(error);
+        alert("Erro ao cadastrar colaborador.");
         return;
       }
-
-      setColaboradores((prev) => [...prev, { id, nome }]);
     }
 
+    await carregarColaboradores();
     fecharModal();
   };
 
-  const excluirColaborador = async (colaborador) => {
+  const excluir = async (colaborador) => {
     const confirmar = window.confirm(
       `Deseja excluir o colaborador "${colaborador.nome}"?`
     );
 
-    if (!confirmar) {
-      return;
-    }
+    if (!confirmar) return;
 
-    // Excluir do Supabase
     const { error } = await supabase
       .from("colaboradores")
       .delete()
       .eq("id", colaborador.id);
 
     if (error) {
-      alert("Erro ao excluir colaborador: " + error.message);
+      console.error(error);
+      alert(
+        "Não foi possível excluir. Existem saídas vinculadas a este colaborador."
+      );
       return;
     }
 
-    const colaboradoresAtualizados = colaboradores.filter(
-      (registro) => registro.id !== colaborador.id
-    );
-
-    setColaboradores(colaboradoresAtualizados);
-
-    if (
-      paginaAtual > 1 &&
-      colaboradoresPagina.length === 1 &&
-      paginaAtual === totalPaginas
-    ) {
-      setPaginaAtual((pagina) => Math.max(1, pagina - 1));
-    }
-  };
-
-  const mudarPagina = (pagina) => {
-    if (pagina < 1 || pagina > totalPaginas) {
-      return;
-    }
-    setPaginaAtual(pagina);
+    await carregarColaboradores();
   };
 
   const handleBusca = (event) => {
@@ -195,14 +193,18 @@ function Colaboradores() {
     setPaginaAtual(1);
   };
 
+  const mudarPagina = (numero) => {
+    if (numero >= 1 && numero <= totalPaginas) {
+      setPaginaAtual(numero);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <div>
-        <h2>Colaboradores</h2>
-          <p>
-            Cadastre os colaboradores que poderão retirar insumos do estoque.
-          </p>
+          <h2>Colaboradores</h2>
+          <p>Cadastre os colaboradores que participam das saídas.</p>
         </div>
 
         <button className="btn btn-primary" onClick={abrirNovo}>
@@ -214,6 +216,7 @@ function Colaboradores() {
         <div className="toolbar-left">
           <div className="search-box">
             <span className="search-icon">🔎</span>
+
             <input
               type="text"
               placeholder="Buscar por ID ou nome..."
@@ -225,7 +228,7 @@ function Colaboradores() {
 
         <div className="toolbar-right">
           <span style={{ color: "#666", fontSize: "11px" }}>
-            {colaboradoresFiltrados.length} colaborador(es)
+            {filtrados.length} colaborador(es)
           </span>
         </div>
       </div>
@@ -242,50 +245,55 @@ function Colaboradores() {
             </thead>
 
             <tbody>
-              {carregando ? (
+              {loading ? (
                 <tr>
                   <td colSpan="3" style={{ textAlign: "center", padding: "2rem" }}>
                     Carregando colaboradores...
                   </td>
                 </tr>
-              ) : colaboradoresPagina.length === 0 ? (
+              ) : pagina.length === 0 ? (
                 <tr>
                   <td colSpan="3">
                     <div className="empty-state">
-                      <div className="empty-state-icon">👥</div>
+                      <div className="empty-state-icon">👷</div>
+
                       <h3>
                         {busca
                           ? "Nenhum colaborador encontrado"
                           : "Nenhum colaborador cadastrado"}
                       </h3>
+
                       <p>
                         {busca
-                          ? "Tente outro termo de pesquisa."
+                          ? "Tente outro termo."
                           : "Clique em “Novo colaborador” para começar."}
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                colaboradoresPagina.map((colaborador) => (
+                pagina.map((colaborador) => (
                   <tr key={colaborador.id}>
                     <td>
                       <strong>{colaborador.id}</strong>
                     </td>
+
                     <td>{colaborador.nome}</td>
+
                     <td>
                       <div className="action-buttons">
                         <button
                           className="icon-button"
-                          title="Editar"
                           onClick={() => abrirEdicao(colaborador)}
+                          title="Editar"
                         >
                           ✏️
                         </button>
+
                         <button
                           className="icon-button danger"
+                          onClick={() => excluir(colaborador)}
                           title="Excluir"
-                          onClick={() => excluirColaborador(colaborador)}
                         >
                           🗑️
                         </button>
@@ -300,7 +308,7 @@ function Colaboradores() {
 
         <div className="pagination">
           <span className="pagination-info">
-            {colaboradoresFiltrados.length === 0
+            {filtrados.length === 0
               ? "0 registros"
               : `Página ${paginaAtual} de ${totalPaginas}`}
           </span>
@@ -318,45 +326,26 @@ function Colaboradores() {
               { length: totalPaginas },
               (_, index) => index + 1
             )
-              .filter((pagina) => {
-                if (totalPaginas <= 5) {
-                  return true;
-                }
+              .filter((numero) => {
+                if (totalPaginas <= 5) return true;
+
                 return (
-                  pagina === 1 ||
-                  pagina === totalPaginas ||
-                  Math.abs(pagina - paginaAtual) <= 1
+                  numero === 1 ||
+                  numero === totalPaginas ||
+                  Math.abs(numero - paginaAtual) <= 1
                 );
               })
-              .map((pagina, index, paginasVisiveis) => {
-                const paginaAnterior = paginasVisiveis[index - 1];
-                const mostrarReticencias =
-                  paginaAnterior && pagina - paginaAnterior > 1;
-
-                return (
-                  <span key={pagina}>
-                    {mostrarReticencias && (
-                      <span
-                        style={{
-                          margin: "0 4px",
-                          color: "#888",
-                        }}
-                      >
-                        ...
-                      </span>
-                    )}
-
-                    <button
-                      className={`pagination-button ${
-                        paginaAtual === pagina ? "active" : ""
-                      }`}
-                      onClick={() => mudarPagina(pagina)}
-                    >
-                      {pagina}
-                    </button>
-                  </span>
-                );
-              })}
+              .map((numero) => (
+                <button
+                  key={numero}
+                  className={`pagination-button ${
+                    paginaAtual === numero ? "active" : ""
+                  }`}
+                  onClick={() => mudarPagina(numero)}
+                >
+                  {numero}
+                </button>
+              ))}
 
             <button
               className="pagination-button"
@@ -389,22 +378,21 @@ function Colaboradores() {
               <button
                 className="modal-close"
                 onClick={fecharModal}
-                aria-label="Fechar"
+                type="button"
               >
                 ×
               </button>
             </div>
 
             <div className="modal-body">
-              <form onSubmit={salvarColaborador}>
+              <form onSubmit={salvar}>
                 <div className="form-grid">
                   <div className="form-group">
-                    <label className="form-label" htmlFor="id">
+                    <label className="form-label">
                       ID do colaborador *
                     </label>
 
                     <input
-                      id="id"
                       name="id"
                       type="text"
                       className="form-control"
@@ -417,12 +405,11 @@ function Colaboradores() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label" htmlFor="nome">
+                    <label className="form-label">
                       Nome completo *
                     </label>
 
                     <input
-                      id="nome"
                       name="nome"
                       type="text"
                       className="form-control"

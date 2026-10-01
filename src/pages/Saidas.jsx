@@ -1,12 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "../supabase.js";
 
 function Saidas() {
-  const agora = new Date();
+  const criarDataHoraAtual = () => {
+    const agora = new Date();
+
+    return {
+      data: agora.toISOString().split("T")[0],
+      hora: agora.toTimeString().slice(0, 5),
+    };
+  };
+
+  const dataHoraInicial = criarDataHoraAtual();
 
   const [form, setForm] = useState({
-    data: agora.toISOString().split("T")[0],
-    hora: agora.toTimeString().slice(0, 5),
+    data: dataHoraInicial.data,
+    hora: dataHoraInicial.hora,
     liderId: "",
     colaboradorId: "",
     itemId: "",
@@ -21,87 +30,141 @@ function Saidas() {
   const [loading, setLoading] = useState(false);
   const [loadingDados, setLoadingDados] = useState(true);
 
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     setLoadingDados(true);
 
-    const [
-      insumosRes,
-      lideresRes,
-      colaboradoresRes,
-    ] = await Promise.all([
-      supabase
-        .from("insumos")
-        .select("*")
-        .order("descricao", { ascending: true }),
+    try {
+      const [
+        insumosRes,
+        lideresRes,
+        colaboradoresRes,
+      ] = await Promise.all([
+        supabase
+          .from("insumos")
+          .select(
+            "id, descricao, estoque_inicial, entradas, saidas, estoque_atual, total_entradas, total_saidas"
+          )
+          .order("descricao", {
+            ascending: true,
+          }),
 
-      supabase
-        .from("lideres")
-        .select("*")
-        .order("nome", { ascending: true }),
+        supabase
+          .from("lideres")
+          .select("id, nome")
+          .order("nome", {
+            ascending: true,
+          }),
 
-      supabase
-        .from("colaboradores")
-        .select("*")
-        .order("nome", { ascending: true }),
-    ]);
+        supabase
+          .from("colaboradores")
+          .select("id, nome")
+          .order("nome", {
+            ascending: true,
+          }),
+      ]);
 
-    if (
-      insumosRes.error ||
-      lideresRes.error ||
-      colaboradoresRes.error
-    ) {
-      console.error(
-        insumosRes.error ||
-          lideresRes.error ||
-          colaboradoresRes.error
-      );
+      if (insumosRes.error) {
+        throw insumosRes.error;
+      }
 
-      setMensagem("Erro ao carregar dados.");
-    } else {
+      if (lideresRes.error) {
+        throw lideresRes.error;
+      }
+
+      if (colaboradoresRes.error) {
+        throw colaboradoresRes.error;
+      }
+
       setInsumos(insumosRes.data || []);
       setLideres(lideresRes.data || []);
-      setColaboradores(colaboradoresRes.data || []);
-    }
+      setColaboradores(
+        colaboradoresRes.data || []
+      );
+    } catch (error) {
+      console.error(
+        "Erro ao carregar dados:",
+        error
+      );
 
-    setLoadingDados(false);
-  };
+      setMensagem(
+        error?.message ||
+          "Erro ao carregar dados."
+      );
+
+      setInsumos([]);
+      setLideres([]);
+      setColaboradores([]);
+    } finally {
+      setLoadingDados(false);
+    }
+  }, []);
 
   useEffect(() => {
     carregarDados();
-  }, []);
+  }, [carregarDados]);
 
-  const itemSelecionado = useMemo(
-    () =>
+  const itemSelecionado = useMemo(() => {
+    const id = String(form.itemId)
+      .trim()
+      .toLowerCase();
+
+    if (!id) {
+      return null;
+    }
+
+    return (
       insumos.find(
         (item) =>
-          String(item.id).toLowerCase() ===
-          String(form.itemId).trim().toLowerCase()
-      ),
-    [insumos, form.itemId]
-  );
+          String(item.id)
+            .trim()
+            .toLowerCase() === id
+      ) || null
+    );
+  }, [insumos, form.itemId]);
 
-  const liderSelecionado = useMemo(
-    () =>
+  const liderSelecionado = useMemo(() => {
+    const id = String(form.liderId)
+      .trim()
+      .toLowerCase();
+
+    if (!id) {
+      return null;
+    }
+
+    return (
       lideres.find(
         (lider) =>
-          String(lider.id).toLowerCase() ===
-          String(form.liderId).trim().toLowerCase()
-      ),
-    [lideres, form.liderId]
-  );
+          String(lider.id)
+            .trim()
+            .toLowerCase() === id
+      ) || null
+    );
+  }, [lideres, form.liderId]);
 
-  const colaboradorSelecionado = useMemo(
-    () =>
+  const colaboradorSelecionado = useMemo(() => {
+    const id = String(form.colaboradorId)
+      .trim()
+      .toLowerCase();
+
+    if (!id) {
+      return null;
+    }
+
+    return (
       colaboradores.find(
         (colaborador) =>
-          String(colaborador.id).toLowerCase() ===
-          String(form.colaboradorId).trim().toLowerCase()
-      ),
-    [colaboradores, form.colaboradorId]
-  );
+          String(colaborador.id)
+            .trim()
+            .toLowerCase() === id
+      ) || null
+    );
+  }, [
+    colaboradores,
+    form.colaboradorId,
+  ]);
 
   const estoqueAtual = Number(
-    itemSelecionado?.estoque_atual || 0
+    itemSelecionado?.estoque_atual ?? 0
   );
 
   const handleChange = (event) => {
@@ -116,11 +179,11 @@ function Saidas() {
   };
 
   const limparFormulario = () => {
-    const agoraAtualizado = new Date();
+    const dataHora = criarDataHoraAtual();
 
     setForm({
-      data: agoraAtualizado.toISOString().split("T")[0],
-      hora: agoraAtualizado.toTimeString().slice(0, 5),
+      data: dataHora.data,
+      hora: dataHora.hora,
       liderId: "",
       colaboradorId: "",
       itemId: "",
@@ -130,89 +193,157 @@ function Saidas() {
     setMensagem("");
   };
 
-const handleSubmit = async (event) => {
-  event.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-  if (
-    !form.data ||
-    !form.hora ||
-    !form.liderId ||
-    !form.colaboradorId ||
-    !form.itemId ||
-    !form.quantidade
-  ) {
-    setMensagem("Preencha todos os campos obrigatórios.");
-    return;
-  }
+    setMensagem("");
 
-  if (!liderSelecionado) {
-    setMensagem("O ID do líder não foi encontrado.");
-    return;
-  }
+    const data = String(form.data).trim();
+    const hora = String(form.hora).trim();
+    const liderId = String(form.liderId).trim();
+    const colaboradorId = String(
+      form.colaboradorId
+    ).trim();
+    const itemId = String(form.itemId).trim();
 
-  if (!colaboradorSelecionado) {
-    setMensagem("O ID do colaborador não foi encontrado.");
-    return;
-  }
-
-  if (!itemSelecionado) {
-    setMensagem("O ID do item não foi encontrado.");
-    return;
-  }
-
-  const quantidade = Number(form.quantidade);
-
-  if (!Number.isInteger(quantidade) || quantidade <= 0) {
-    setMensagem("Informe uma quantidade inteira maior que zero.");
-    return;
-  }
-
-  const estoqueAtual = Number(itemSelecionado.estoque_atual || 0);
-
-  if (quantidade > estoqueAtual) {
-    setMensagem(
-      `Estoque insuficiente. Estoque atual: ${estoqueAtual}.`
-    );
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const { error } = await supabase.rpc("registrar_saida", {
-      p_item_id: String(itemSelecionado.id),
-      p_quantidade: quantidade,
-      p_lider_id: String(liderSelecionado.id),
-      p_colaborador_id: String(colaboradorSelecionado.id),
-      p_data: form.data,
-      p_hora: form.hora,
-    });
-
-    if (error) {
-      throw error;
+    if (
+      !data ||
+      !hora ||
+      !liderId ||
+      !colaboradorId ||
+      !itemId ||
+      form.quantidade === ""
+    ) {
+      setMensagem(
+        "Preencha todos os campos obrigatórios."
+      );
+      return;
     }
 
-    setMensagem("Saída registrada com sucesso.");
+    if (!liderSelecionado) {
+      setMensagem(
+        `O ID do líder "${liderId}" não foi encontrado.`
+      );
+      return;
+    }
 
-    await carregarDados();
-    limparFormulario();
-  } catch (error) {
-    console.error("Erro ao registrar saída:", error);
+    if (!colaboradorSelecionado) {
+      setMensagem(
+        `O ID do colaborador "${colaboradorId}" não foi encontrado.`
+      );
+      return;
+    }
 
-    setMensagem(
-      error?.message || "Erro ao registrar saída."
+    if (!itemSelecionado) {
+      setMensagem(
+        `O ID do item "${itemId}" não foi encontrado.`
+      );
+      return;
+    }
+
+    const quantidade = Number(
+      form.quantidade
     );
-  } finally {
-    setLoading(false);
-  }
-};
+
+    if (
+      !Number.isInteger(quantidade) ||
+      quantidade <= 0
+    ) {
+      setMensagem(
+        "Informe uma quantidade inteira maior que zero."
+      );
+      return;
+    }
+
+    const estoque = Number(
+      itemSelecionado.estoque_atual ?? 0
+    );
+
+    if (quantidade > estoque) {
+      setMensagem(
+        `Estoque insuficiente. Estoque atual: ${estoque}.`
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      /*
+       * IMPORTANTE:
+       * Os IDs são enviados como TEXT.
+       * Isso corresponde à função:
+       *
+       * registrar_saida(
+       *   text,
+       *   numeric,
+       *   text,
+       *   text,
+       *   date,
+       *   time
+       * )
+       */
+
+      const { data: resultado, error } =
+        await supabase.rpc(
+          "registrar_saida",
+          {
+            p_item_id: itemId,
+            p_quantidade: quantidade,
+            p_lider_id: liderId,
+            p_colaborador_id:
+              colaboradorId,
+            p_data: data,
+            p_hora: hora,
+          }
+        );
+
+      if (error) {
+        console.error(
+          "Erro retornado pelo Supabase:",
+          error
+        );
+
+        throw error;
+      }
+
+      console.log(
+        "Saída registrada:",
+        resultado
+      );
+
+      setMensagem(
+        "Saída registrada com sucesso."
+      );
+
+      await carregarDados();
+
+      limparFormulario();
+    } catch (error) {
+      console.error(
+        "Erro ao registrar saída:",
+        error
+      );
+
+      setMensagem(
+        error?.message ||
+          "Erro ao registrar saída."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h2>Saída de insumos</h2>
-          <p>Registre a retirada de materiais do estoque.</p>
+
+          <p>
+            Registre a retirada de materiais do
+            estoque.
+          </p>
         </div>
       </div>
 
@@ -222,37 +353,51 @@ const handleSubmit = async (event) => {
             <h3>Nova saída</h3>
           </div>
 
-          <span className="badge badge-danger">Saída</span>
+          <span className="badge badge-danger">
+            Saída
+          </span>
         </div>
 
         <div className="card-body">
           {loadingDados ? (
-            <p>Carregando dados do banco...</p>
+            <p>
+              Carregando dados do banco...
+            </p>
           ) : (
-            <form onSubmit={handleSubmit}>
+            <form
+              onSubmit={handleSubmit}
+            >
               <div className="form-grid">
                 <div className="form-group">
-                  <label className="form-label">Data *</label>
+                  <label className="form-label">
+                    Data *
+                  </label>
 
                   <input
                     name="data"
                     type="date"
                     className="form-control"
                     value={form.data}
-                    onChange={handleChange}
+                    onChange={
+                      handleChange
+                    }
                     required
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Hora *</label>
+                  <label className="form-label">
+                    Hora *
+                  </label>
 
                   <input
                     name="hora"
                     type="time"
                     className="form-control"
                     value={form.hora}
-                    onChange={handleChange}
+                    onChange={
+                      handleChange
+                    }
                     required
                   />
                 </div>
@@ -268,7 +413,9 @@ const handleSubmit = async (event) => {
                     className="form-control"
                     placeholder="Digite o ID do líder"
                     value={form.liderId}
-                    onChange={handleChange}
+                    onChange={
+                      handleChange
+                    }
                     required
                   />
                 </div>
@@ -281,7 +428,10 @@ const handleSubmit = async (event) => {
                   <input
                     type="text"
                     className="form-control"
-                    value={liderSelecionado?.nome || ""}
+                    value={
+                      liderSelecionado?.nome ||
+                      ""
+                    }
                     placeholder="Nome automático"
                     readOnly
                   />
@@ -297,8 +447,12 @@ const handleSubmit = async (event) => {
                     type="text"
                     className="form-control"
                     placeholder="Digite o ID do colaborador"
-                    value={form.colaboradorId}
-                    onChange={handleChange}
+                    value={
+                      form.colaboradorId
+                    }
+                    onChange={
+                      handleChange
+                    }
                     required
                   />
                 </div>
@@ -311,7 +465,10 @@ const handleSubmit = async (event) => {
                   <input
                     type="text"
                     className="form-control"
-                    value={colaboradorSelecionado?.nome || ""}
+                    value={
+                      colaboradorSelecionado?.nome ||
+                      ""
+                    }
                     placeholder="Nome automático"
                     readOnly
                   />
@@ -328,7 +485,9 @@ const handleSubmit = async (event) => {
                     className="form-control"
                     placeholder="Digite o ID do item"
                     value={form.itemId}
-                    onChange={handleChange}
+                    onChange={
+                      handleChange
+                    }
                     required
                   />
                 </div>
@@ -341,7 +500,10 @@ const handleSubmit = async (event) => {
                   <input
                     type="text"
                     className="form-control"
-                    value={itemSelecionado?.descricao || ""}
+                    value={
+                      itemSelecionado?.descricao ||
+                      ""
+                    }
                     placeholder="Descrição automática"
                     readOnly
                   />
@@ -359,8 +521,12 @@ const handleSubmit = async (event) => {
                     step="1"
                     className="form-control"
                     placeholder="Informe a quantidade"
-                    value={form.quantidade}
-                    onChange={handleChange}
+                    value={
+                      form.quantidade
+                    }
+                    onChange={
+                      handleChange
+                    }
                     required
                   />
                 </div>
@@ -374,7 +540,9 @@ const handleSubmit = async (event) => {
                     <input
                       type="text"
                       className="form-control"
-                      value={estoqueAtual}
+                      value={
+                        estoqueAtual
+                      }
                       readOnly
                     />
                   </div>
@@ -384,11 +552,17 @@ const handleSubmit = async (event) => {
               {mensagem && (
                 <div
                   className={
-                    mensagem.toLowerCase().includes("sucesso")
+                    mensagem
+                      .toLowerCase()
+                      .includes(
+                        "sucesso"
+                      )
                       ? "alert alert-success"
                       : "alert alert-warning"
                   }
-                  style={{ marginTop: "20px" }}
+                  style={{
+                    marginTop: "20px",
+                  }}
                 >
                   {mensagem}
                 </div>
@@ -398,7 +572,9 @@ const handleSubmit = async (event) => {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={limparFormulario}
+                  onClick={
+                    limparFormulario
+                  }
                   disabled={loading}
                 >
                   Limpar
@@ -409,7 +585,9 @@ const handleSubmit = async (event) => {
                   className="btn btn-danger"
                   disabled={loading}
                 >
-                  {loading ? "Salvando..." : "📤 Registrar saída"}
+                  {loading
+                    ? "Salvando..."
+                    : "📤 Registrar saída"}
                 </button>
               </div>
             </form>

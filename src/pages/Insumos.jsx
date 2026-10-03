@@ -5,19 +5,19 @@ const ITENS_POR_PAGINA = 40;
 
 const INSUMOS_DESTAQUE = [
   {
-    id: "005",
+    id: "0005",
     titulo: "Etq Bancada Branca",
     descricao: "080X040",
     icone: "🏷️",
   },
   {
-    id: "001",
+    id: "0004",
     titulo: "Etq Bancada Color",
     descricao: "080X040",
     icone: "🏷️",
   },
   {
-    id: "007",
+    id: "0007",
     titulo: "Etq Gestão",
     descricao: "100X150Mm",
     icone: "🏷️",

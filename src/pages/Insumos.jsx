@@ -181,15 +181,15 @@ if (
     []
   );
 
-  /*
-   * CARDS DE DESTAQUE
-   *
-   * Cada card procura seu próprio ID:
-   *
-   * 005 = Etq Bancada Branca
-   * 001 = Etq Bancada Color
-   * 007 = Etq Gestão
-   */
+/*
+ * CARDS DE DESTAQUE
+ *
+ * Cada card procura seu próprio ID:
+ *
+ * 0005 = Etq Bancada Branca
+ * 0004 = Etq Bancada Color
+ * 0007 = Etq Gestão
+ */
   const cardsInsumos = useMemo(() => {
   return INSUMOS_DESTAQUE.map((insumo) => {
     const itemEncontrado = itens.find(

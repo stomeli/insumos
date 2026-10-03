@@ -40,37 +40,50 @@ function Insumos() {
   });
 
   /*
-   * CARREGA OS INSUMOS
-   *
-   * O campo estoque_atual é mantido pelo banco
-   * através das funções de entrada e saída.
+   * CARREGAR INSUMOS
    */
   const carregarInsumos = useCallback(async () => {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("insumos")
-      .select(`
-        id,
-        descricao,
-        estoque_inicial,
-        entradas,
-        saidas,
-        estoque_atual,
-        total_entradas,
-        total_saidas
-      `)
-      .order("descricao", { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from("insumos")
+        .select(`
+          id,
+          descricao,
+          estoque_inicial,
+          entradas,
+          saidas,
+          estoque_atual,
+          total_entradas,
+          total_saidas
+        `)
+        .order("descricao", {
+          ascending: true,
+        });
 
-    if (error) {
-      console.error("Erro ao carregar insumos:", error);
-      alert("Erro ao carregar insumos.");
-      setItens([]);
-    } else {
+      if (error) {
+        throw error;
+      }
+
+      console.log("INSUMOS CARREGADOS:", data);
+
       setItens(data || []);
-    }
+    } catch (error) {
+      console.error(
+        "Erro ao carregar insumos:",
+        error
+      );
 
-    setLoading(false);
+      alert(
+        error?.message ||
+          "Erro ao carregar insumos."
+      );
+
+      setItens([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -78,53 +91,119 @@ function Insumos() {
   }, [carregarInsumos]);
 
   /*
-   * CARDS DE DESTAQUE
+   * CALCULA O ESTOQUE DE UM ITEM
    *
-   * IMPORTANTE:
-   * O estoque atual vem diretamente do banco:
+   * Fórmula:
    *
-   * estoque_atual
-   *
-   * Não calculamos novamente no React.
+   * estoque inicial
+   * + entradas
+   * - saídas
    */
-  const cardsInsumos = useMemo(() => {
-    return INSUMOS_DESTAQUE.map((insumo) => {
-      const itemEncontrado = itens.find(
-        (item) =>
-          String(item.id).trim() ===
-          String(insumo.id).trim()
-      );
-
-      if (!itemEncontrado) {
+  const calcularEstoque = useCallback(
+    (item) => {
+      if (!item) {
         return {
-          ...insumo,
-          valor: 0,
+          estoqueInicial: 0,
+          entradas: 0,
+          saidas: 0,
+          estoqueAtual: 0,
         };
       }
 
+      const estoqueInicial = Number(
+        item.estoque_inicial ?? 0
+      );
+
+      const entradas = Number(
+        item.total_entradas ??
+          item.entradas ??
+          0
+      );
+
+      const saidas = Number(
+        item.total_saidas ??
+          item.saidas ??
+          0
+      );
+
+      const estoqueAtual =
+        estoqueInicial +
+        entradas -
+        saidas;
+
       return {
-        ...insumo,
-        valor: Number(
-          itemEncontrado.estoque_atual ?? 0
+        estoqueInicial,
+        entradas,
+        saidas,
+        estoqueAtual: Math.max(
+          0,
+          estoqueAtual
         ),
       };
-    });
-  }, [itens]);
+    },
+    []
+  );
+
+  /*
+   * CARDS DE DESTAQUE
+   *
+   * Cada card procura seu próprio ID:
+   *
+   * 005 = Etq Bancada Branca
+   * 001 = Etq Bancada Color
+   * 007 = Etq Gestão
+   */
+  const cardsInsumos = useMemo(() => {
+    return INSUMOS_DESTAQUE.map(
+      (insumo) => {
+        const itemEncontrado =
+          itens.find(
+            (item) =>
+              String(item.id)
+                .trim()
+                .toLowerCase() ===
+              String(insumo.id)
+                .trim()
+                .toLowerCase()
+          );
+
+        const estoque =
+          calcularEstoque(
+            itemEncontrado
+          );
+
+        console.log(
+          `CARD ${insumo.id}:`,
+          {
+            itemEncontrado,
+            estoque,
+          }
+        );
+
+        return {
+          ...insumo,
+          valor: estoque.estoqueAtual,
+        };
+      }
+    );
+  }, [itens, calcularEstoque]);
 
   /*
    * FILTRO
    */
   const itensFiltrados = useMemo(() => {
-    const termo = busca.toLowerCase().trim();
+    const termo =
+      busca.toLowerCase().trim();
 
     if (!termo) {
       return itens;
     }
 
-    return itens.filter((item) =>
-      `${item.id} ${item.descricao}`
-        .toLowerCase()
-        .includes(termo)
+    return itens.filter(
+      (item) =>
+        `${item.id} ${item.descricao}`
+          .toLowerCase()
+          .includes(termo)
     );
   }, [itens, busca]);
 
@@ -140,10 +219,18 @@ function Insumos() {
   );
 
   useEffect(() => {
-    if (paginaAtual > totalPaginas) {
-      setPaginaAtual(totalPaginas);
+    if (
+      paginaAtual >
+      totalPaginas
+    ) {
+      setPaginaAtual(
+        totalPaginas
+      );
     }
-  }, [paginaAtual, totalPaginas]);
+  }, [
+    paginaAtual,
+    totalPaginas,
+  ]);
 
   const itensPagina = useMemo(() => {
     const inicio =
@@ -224,9 +311,8 @@ function Insumos() {
     const descricao =
       form.descricao.trim();
 
-    const estoqueInicial = Number(
-      form.estoqueInicial
-    );
+    const estoqueInicial =
+      Number(form.estoqueInicial);
 
     if (!id || !descricao) {
       alert(
@@ -247,21 +333,19 @@ function Insumos() {
       return;
     }
 
-    /*
-     * EDITAR
-     */
     if (itemEditando) {
-      const { error } = await supabase
-        .from("insumos")
-        .update({
-          descricao,
-          estoque_inicial:
-            estoqueInicial,
-        })
-        .eq(
-          "id",
-          itemEditando.id
-        );
+      const { error } =
+        await supabase
+          .from("insumos")
+          .update({
+            descricao,
+            estoque_inicial:
+              estoqueInicial,
+          })
+          .eq(
+            "id",
+            itemEditando.id
+          );
 
       if (error) {
         console.error(
@@ -275,12 +359,7 @@ function Insumos() {
 
         return;
       }
-    }
-
-    /*
-     * NOVO
-     */
-    else {
+    } else {
       const {
         data: existente,
         error: consultaError,
@@ -338,7 +417,6 @@ function Insumos() {
     }
 
     await carregarInsumos();
-
     fecharModal();
   };
 
@@ -426,7 +504,7 @@ function Insumos() {
         </button>
       </div>
 
-      {/* CARDS DOS INSUMOS DESTAQUE */}
+      {/* CARDS */}
       <div className="stats-grid">
         {cardsInsumos.map(
           (item) => (
@@ -487,6 +565,7 @@ function Insumos() {
         )}
       </div>
 
+      {/* BUSCA */}
       <div className="toolbar">
         <div className="toolbar-left">
           <div className="search-box">
@@ -520,6 +599,7 @@ function Insumos() {
         </div>
       </div>
 
+      {/* TABELA */}
       <div className="card">
         <div className="table-container">
           <table className="data-table">
@@ -582,44 +662,19 @@ function Insumos() {
               ) : (
                 itensPagina.map(
                   (item) => {
-                    /*
-                     * Os valores abaixo vêm
-                     * diretamente do banco.
-                     */
-                    const estoqueInicial =
-                      Number(
-                        item.estoque_inicial ??
-                          0
-                      );
-
-                    const totalEntradas =
-                      Number(
-                        item.total_entradas ??
-                          item.entradas ??
-                          0
-                      );
-
-                    const totalSaidas =
-                      Number(
-                        item.total_saidas ??
-                          item.saidas ??
-                          0
-                      );
-
-                    const estoqueAtual =
-                      Number(
-                        item.estoque_atual ??
-                          0
+                    const estoque =
+                      calcularEstoque(
+                        item
                       );
 
                     const estoqueBaixo =
-                      estoqueAtual >
+                      estoque.estoqueAtual >
                         0 &&
-                      estoqueAtual <=
+                      estoque.estoqueAtual <=
                         10;
 
                     const estoqueZerado =
-                      estoqueAtual <=
+                      estoque.estoqueAtual <=
                       0;
 
                     return (
@@ -644,7 +699,7 @@ function Insumos() {
 
                         <td>
                           {
-                            estoqueInicial
+                            estoque.estoqueInicial
                           }
                         </td>
 
@@ -652,7 +707,7 @@ function Insumos() {
                           <span className="badge badge-success">
                             +
                             {
-                              totalEntradas
+                              estoque.entradas
                             }
                           </span>
                         </td>
@@ -661,7 +716,7 @@ function Insumos() {
                           <span className="badge badge-danger">
                             -
                             {
-                              totalSaidas
+                              estoque.saidas
                             }
                           </span>
                         </td>
@@ -669,7 +724,7 @@ function Insumos() {
                         <td>
                           <strong>
                             {
-                              estoqueAtual
+                              estoque.estoqueAtual
                             }
                           </strong>
                         </td>
@@ -728,6 +783,7 @@ function Insumos() {
           </table>
         </div>
 
+        {/* PAGINAÇÃO */}
         <div className="pagination">
           <span className="pagination-info">
             {itensFiltrados.length ===
@@ -860,6 +916,7 @@ function Insumos() {
         </div>
       </div>
 
+      {/* MODAL */}
       {modalAberto && (
         <div
           className="modal-overlay"
@@ -990,13 +1047,12 @@ function Insumos() {
                     >
                       O estoque
                       atual é
-                      atualizado
-                      pelo banco
-                      através
-                      dos
-                      registros
-                      de entrada
-                      e saída.
+                      calculado
+                      com base no
+                      estoque
+                      inicial,
+                      entradas e
+                      saídas.
                     </p>
                   </div>
                 </div>

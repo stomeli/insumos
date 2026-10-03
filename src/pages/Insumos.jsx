@@ -7,19 +7,19 @@ const INSUMOS_DESTAQUE = [
   {
     titulo: "Etq Bancada Branca",
     descricao: "080X040",
-    busca: "Etq Bancada Branca (080X040)",
+    descricaoBanco: "Etq Bancada Branca (080X040)",
     icone: "🏷️",
   },
   {
     titulo: "Etq Bancada Color",
     descricao: "080X040",
-    busca: "Etq Bancada Color (080X040)",
+    descricaoBanco: "Etq Bancada Color (080X040)",
     icone: "🏷️",
   },
   {
     titulo: "Etq Gestão",
     descricao: "100X150mm",
-    busca: "Etq Gestão (100X150mm)",
+    descricaoBanco: "Etq Gestão (100X150mm)",
     icone: "🏷️",
   },
 ];
@@ -69,21 +69,21 @@ function Insumos() {
    * pelo banco de dados.
    */
   const cardsInsumos = useMemo(() => {
-    return INSUMOS_DESTAQUE.map((insumo) => {
-      const itemEncontrado = itens.find(
-        (item) =>
-          String(item.descricao || "").trim().toLowerCase() ===
-          insumo.busca.trim().toLowerCase()
-      );
+  return INSUMOS_DESTAQUE.map((insumo) => {
+    const itemEncontrado = itens.find(
+      (item) =>
+        String(item.descricao || "")
+          .trim()
+          .toLowerCase() ===
+        insumo.descricaoBanco.trim().toLowerCase()
+    );
 
-      return {
-        ...insumo,
-        valor: itemEncontrado
-          ? Number(itemEncontrado.estoque_atual || 0)
-          : 0,
-      };
-    });
-  }, [itens]);
+    return {
+      ...insumo,
+      valor: Number(itemEncontrado?.estoque_atual || 0),
+    };
+  });
+}, [itens]);
 
   const itensFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();

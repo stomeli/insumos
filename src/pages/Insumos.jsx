@@ -135,13 +135,16 @@ function Insumos() {
        * calculado/mantido pelo Supabase.
        */
       const estoqueAtualBanco =
-        Number(item.estoque_atual);
+  item.estoque_atual !== null &&
+  item.estoque_atual !== undefined &&
+  item.estoque_atual !== ""
+    ? Number(item.estoque_atual)
+    : null;
 
-      if (
-        Number.isFinite(
-          estoqueAtualBanco
-        )
-      ) {
+if (
+  estoqueAtualBanco !== null &&
+  Number.isFinite(estoqueAtualBanco)
+) {
         return {
           estoqueInicial,
           entradas,

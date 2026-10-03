@@ -5,21 +5,21 @@ const ITENS_POR_PAGINA = 40;
 
 const INSUMOS_DESTAQUE = [
   {
+    id: "005",
     titulo: "Etq Bancada Branca",
     descricao: "080X040",
-    descricaoBanco: "Etq Bancada Branca (080X040)",
     icone: "🏷️",
   },
   {
+    id: "001",
     titulo: "Etq Bancada Color",
     descricao: "080X040",
-    descricaoBanco: "Etq Bancada Color (080X040)",
     icone: "🏷️",
   },
   {
+    id: "007",
     titulo: "Etq Gestão",
-    descricao: "100X150mm",
-    descricaoBanco: "Etq Gestão (100X150mm)",
+    descricao: "100X150Mm",
     icone: "🏷️",
   },
 ];
@@ -68,14 +68,10 @@ function Insumos() {
    * Os cards utilizam o estoque_atual que já é calculado
    * pelo banco de dados.
    */
-  const cardsInsumos = useMemo(() => {
+ const cardsInsumos = useMemo(() => {
   return INSUMOS_DESTAQUE.map((insumo) => {
     const itemEncontrado = itens.find(
-      (item) =>
-        String(item.descricao || "")
-          .trim()
-          .toLowerCase() ===
-        insumo.descricaoBanco.trim().toLowerCase()
+      (item) => String(item.id) === String(insumo.id)
     );
 
     return {

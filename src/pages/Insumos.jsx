@@ -39,16 +39,31 @@ function Insumos() {
     estoqueInicial: "",
   });
 
+  /*
+   * CARREGA OS INSUMOS
+   *
+   * O campo estoque_atual é mantido pelo banco
+   * através das funções de entrada e saída.
+   */
   const carregarInsumos = useCallback(async () => {
     setLoading(true);
 
     const { data, error } = await supabase
       .from("insumos")
-      .select("*")
+      .select(`
+        id,
+        descricao,
+        estoque_inicial,
+        entradas,
+        saidas,
+        estoque_atual,
+        total_entradas,
+        total_saidas
+      `)
       .order("descricao", { ascending: true });
 
     if (error) {
-      console.error(error);
+      console.error("Erro ao carregar insumos:", error);
       alert("Erro ao carregar insumos.");
       setItens([]);
     } else {
@@ -65,16 +80,19 @@ function Insumos() {
   /*
    * CARDS DE DESTAQUE
    *
-   * O valor é calculado utilizando os dados
-   * já registrados no Supabase:
+   * IMPORTANTE:
+   * O estoque atual vem diretamente do banco:
    *
-   * estoque inicial + entradas - saídas
+   * estoque_atual
+   *
+   * Não calculamos novamente no React.
    */
   const cardsInsumos = useMemo(() => {
     return INSUMOS_DESTAQUE.map((insumo) => {
       const itemEncontrado = itens.find(
         (item) =>
-          String(item.id).trim() === String(insumo.id).trim()
+          String(item.id).trim() ===
+          String(insumo.id).trim()
       );
 
       if (!itemEncontrado) {
@@ -84,32 +102,24 @@ function Insumos() {
         };
       }
 
-      const estoqueInicial = Number(
-        itemEncontrado.estoque_inicial || 0
-      );
-
-      const totalEntradas = Number(
-        itemEncontrado.total_entradas || 0
-      );
-
-      const totalSaidas = Number(
-        itemEncontrado.total_saidas || 0
-      );
-
-      const estoqueAtual =
-        estoqueInicial + totalEntradas - totalSaidas;
-
       return {
         ...insumo,
-        valor: Math.max(0, estoqueAtual),
+        valor: Number(
+          itemEncontrado.estoque_atual ?? 0
+        ),
       };
     });
   }, [itens]);
 
+  /*
+   * FILTRO
+   */
   const itensFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
 
-    if (!termo) return itens;
+    if (!termo) {
+      return itens;
+    }
 
     return itens.filter((item) =>
       `${item.id} ${item.descricao}`
@@ -118,9 +128,15 @@ function Insumos() {
     );
   }, [itens, busca]);
 
+  /*
+   * PAGINAÇÃO
+   */
   const totalPaginas = Math.max(
     1,
-    Math.ceil(itensFiltrados.length / ITENS_POR_PAGINA)
+    Math.ceil(
+      itensFiltrados.length /
+        ITENS_POR_PAGINA
+    )
   );
 
   useEffect(() => {
@@ -131,14 +147,21 @@ function Insumos() {
 
   const itensPagina = useMemo(() => {
     const inicio =
-      (paginaAtual - 1) * ITENS_POR_PAGINA;
+      (paginaAtual - 1) *
+      ITENS_POR_PAGINA;
 
     return itensFiltrados.slice(
       inicio,
       inicio + ITENS_POR_PAGINA
     );
-  }, [itensFiltrados, paginaAtual]);
+  }, [
+    itensFiltrados,
+    paginaAtual,
+  ]);
 
+  /*
+   * NOVO ITEM
+   */
   const abrirNovoItem = () => {
     setItemEditando(null);
 
@@ -151,6 +174,9 @@ function Insumos() {
     setModalAberto(true);
   };
 
+  /*
+   * EDITAR ITEM
+   */
   const abrirEdicao = (item) => {
     setItemEditando(item);
 
@@ -165,13 +191,22 @@ function Insumos() {
     setModalAberto(true);
   };
 
+  /*
+   * FECHAR MODAL
+   */
   const fecharModal = () => {
     setModalAberto(false);
     setItemEditando(null);
   };
 
+  /*
+   * ALTERAÇÃO DOS CAMPOS
+   */
   const handleChange = (event) => {
-    const { name, value } = event.target;
+    const {
+      name,
+      value,
+    } = event.target;
 
     setForm((prev) => ({
       ...prev,
@@ -179,41 +214,73 @@ function Insumos() {
     }));
   };
 
+  /*
+   * SALVAR ITEM
+   */
   const salvarItem = async (event) => {
     event.preventDefault();
 
     const id = form.id.trim();
-    const descricao = form.descricao.trim();
-    const estoqueInicial = Number(form.estoqueInicial);
+    const descricao =
+      form.descricao.trim();
+
+    const estoqueInicial = Number(
+      form.estoqueInicial
+    );
 
     if (!id || !descricao) {
-      alert("Preencha todos os campos.");
+      alert(
+        "Preencha todos os campos."
+      );
       return;
     }
 
     if (
-      !Number.isFinite(estoqueInicial) ||
+      !Number.isFinite(
+        estoqueInicial
+      ) ||
       estoqueInicial < 0
     ) {
-      alert("Informe um estoque inicial válido.");
+      alert(
+        "Informe um estoque inicial válido."
+      );
       return;
     }
 
+    /*
+     * EDITAR
+     */
     if (itemEditando) {
       const { error } = await supabase
         .from("insumos")
         .update({
           descricao,
-          estoque_inicial: estoqueInicial,
+          estoque_inicial:
+            estoqueInicial,
         })
-        .eq("id", itemEditando.id);
+        .eq(
+          "id",
+          itemEditando.id
+        );
 
       if (error) {
-        console.error(error);
-        alert("Erro ao atualizar o insumo.");
+        console.error(
+          "Erro ao atualizar insumo:",
+          error
+        );
+
+        alert(
+          "Erro ao atualizar o insumo."
+        );
+
         return;
       }
-    } else {
+    }
+
+    /*
+     * NOVO
+     */
+    else {
       const {
         data: existente,
         error: consultaError,
@@ -224,23 +291,34 @@ function Insumos() {
         .maybeSingle();
 
       if (consultaError) {
-        console.error(consultaError);
-        alert("Erro ao verificar o ID.");
+        console.error(
+          consultaError
+        );
+
+        alert(
+          "Erro ao verificar o ID."
+        );
+
         return;
       }
 
       if (existente) {
-        alert("Já existe um insumo com esse ID.");
+        alert(
+          "Já existe um insumo com esse ID."
+        );
+
         return;
       }
 
-      const { error } = await supabase
-        .from("insumos")
-        .insert({
-          id,
-          descricao,
-          estoque_inicial: estoqueInicial,
-        });
+      const { error } =
+        await supabase
+          .from("insumos")
+          .insert({
+            id,
+            descricao,
+            estoque_inicial:
+              estoqueInicial,
+          });
 
       if (error) {
         console.error(
@@ -250,7 +328,8 @@ function Insumos() {
 
         alert(
           `Erro ao cadastrar o insumo:\n\n${
-            error.message || "Erro desconhecido"
+            error.message ||
+            "Erro desconhecido"
           }`
         );
 
@@ -259,20 +338,30 @@ function Insumos() {
     }
 
     await carregarInsumos();
+
     fecharModal();
   };
 
-  const excluirItem = async (item) => {
-    const confirmar = window.confirm(
-      `Deseja excluir o insumo "${item.descricao}"?`
-    );
+  /*
+   * EXCLUIR ITEM
+   */
+  const excluirItem = async (
+    item
+  ) => {
+    const confirmar =
+      window.confirm(
+        `Deseja excluir o insumo "${item.descricao}"?`
+      );
 
-    if (!confirmar) return;
+    if (!confirmar) {
+      return;
+    }
 
-    const { error } = await supabase
-      .from("insumos")
-      .delete()
-      .eq("id", item.id);
+    const { error } =
+      await supabase
+        .from("insumos")
+        .delete()
+        .eq("id", item.id);
 
     if (error) {
       console.error(error);
@@ -287,7 +376,12 @@ function Insumos() {
     await carregarInsumos();
   };
 
-  const mudarPagina = (pagina) => {
+  /*
+   * PAGINAÇÃO
+   */
+  const mudarPagina = (
+    pagina
+  ) => {
     if (
       pagina >= 1 &&
       pagina <= totalPaginas
@@ -296,8 +390,16 @@ function Insumos() {
     }
   };
 
-  const handleBusca = (event) => {
-    setBusca(event.target.value);
+  /*
+   * BUSCA
+   */
+  const handleBusca = (
+    event
+  ) => {
+    setBusca(
+      event.target.value
+    );
+
     setPaginaAtual(1);
   };
 
@@ -308,13 +410,17 @@ function Insumos() {
           <h2>Insumos</h2>
 
           <p>
-            Cadastre e acompanhe os materiais disponíveis no estoque.
+            Cadastre e acompanhe os
+            materiais disponíveis no
+            estoque.
           </p>
         </div>
 
         <button
           className="btn btn-primary"
-          onClick={abrirNovoItem}
+          onClick={
+            abrirNovoItem
+          }
         >
           + Novo insumo
         </button>
@@ -322,51 +428,63 @@ function Insumos() {
 
       {/* CARDS DOS INSUMOS DESTAQUE */}
       <div className="stats-grid">
-        {cardsInsumos.map((item) => (
-          <div
-            className="stat-card"
-            key={item.id}
-          >
+        {cardsInsumos.map(
+          (item) => (
             <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-              }}
+              className="stat-card"
+              key={item.id}
             >
-              <div>
-                <div className="stat-label">
-                  {item.titulo}
-                </div>
-
-                <div className="stat-value">
-                  {loading
-                    ? "..."
-                    : item.valor.toLocaleString("pt-BR")}
-                </div>
-
-                <div className="stat-description">
-                  {item.descricao}
-                </div>
-              </div>
-
               <div
                 style={{
-                  width: "40px",
-                  height: "40px",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "#fff8b8",
-                  borderRadius: "10px",
-                  fontSize: "18px",
+                  justifyContent:
+                    "space-between",
+                  alignItems:
+                    "flex-start",
                 }}
               >
-                {item.icone}
+                <div>
+                  <div className="stat-label">
+                    {item.titulo}
+                  </div>
+
+                  <div className="stat-value">
+                    {loading
+                      ? "..."
+                      : item.valor.toLocaleString(
+                          "pt-BR"
+                        )}
+                  </div>
+
+                  <div className="stat-description">
+                    {item.descricao}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    display:
+                      "flex",
+                    alignItems:
+                      "center",
+                    justifyContent:
+                      "center",
+                    background:
+                      "#fff8b8",
+                    borderRadius:
+                      "10px",
+                    fontSize:
+                      "18px",
+                  }}
+                >
+                  {item.icone}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        )}
       </div>
 
       <div className="toolbar">
@@ -380,7 +498,9 @@ function Insumos() {
               type="text"
               placeholder="Buscar por ID ou descrição..."
               value={busca}
-              onChange={handleBusca}
+              onChange={
+                handleBusca
+              }
             />
           </div>
         </div>
@@ -392,7 +512,10 @@ function Insumos() {
               fontSize: "11px",
             }}
           >
-            {itensFiltrados.length} item(ns)
+            {
+              itensFiltrados.length
+            }{" "}
+            item(ns)
           </span>
         </div>
       </div>
@@ -404,10 +527,14 @@ function Insumos() {
               <tr>
                 <th>ID do item</th>
                 <th>Descrição</th>
-                <th>Estoque inicial</th>
+                <th>
+                  Estoque inicial
+                </th>
                 <th>Entradas</th>
                 <th>Saídas</th>
-                <th>Estoque atual</th>
+                <th>
+                  Estoque atual
+                </th>
                 <th>Status</th>
                 <th>Ações</th>
               </tr>
@@ -419,14 +546,18 @@ function Insumos() {
                   <td
                     colSpan="8"
                     style={{
-                      textAlign: "center",
-                      padding: "2rem",
+                      textAlign:
+                        "center",
+                      padding:
+                        "2rem",
                     }}
                   >
-                    Carregando insumos...
+                    Carregando
+                    insumos...
                   </td>
                 </tr>
-              ) : itensPagina.length === 0 ? (
+              ) : itensPagina.length ===
+                0 ? (
                 <tr>
                   <td colSpan="8">
                     <div className="empty-state">
@@ -449,107 +580,149 @@ function Insumos() {
                   </td>
                 </tr>
               ) : (
-                itensPagina.map((item) => {
-                  const estoqueInicial = Number(
-                    item.estoque_inicial || 0
-                  );
+                itensPagina.map(
+                  (item) => {
+                    /*
+                     * Os valores abaixo vêm
+                     * diretamente do banco.
+                     */
+                    const estoqueInicial =
+                      Number(
+                        item.estoque_inicial ??
+                          0
+                      );
 
-                  const totalEntradas = Number(
-                    item.total_entradas || 0
-                  );
+                    const totalEntradas =
+                      Number(
+                        item.total_entradas ??
+                          item.entradas ??
+                          0
+                      );
 
-                  const totalSaidas = Number(
-                    item.total_saidas || 0
-                  );
+                    const totalSaidas =
+                      Number(
+                        item.total_saidas ??
+                          item.saidas ??
+                          0
+                      );
 
-                  const estoqueAtual =
-                    estoqueInicial +
-                    totalEntradas -
-                    totalSaidas;
+                    const estoqueAtual =
+                      Number(
+                        item.estoque_atual ??
+                          0
+                      );
 
-                  const estoqueBaixo =
-                    estoqueAtual > 0 &&
-                    estoqueAtual <= 10;
+                    const estoqueBaixo =
+                      estoqueAtual >
+                        0 &&
+                      estoqueAtual <=
+                        10;
 
-                  const estoqueZerado =
-                    estoqueAtual <= 0;
+                    const estoqueZerado =
+                      estoqueAtual <=
+                      0;
 
-                  return (
-                    <tr key={item.id}>
-                      <td>
-                        <strong>
-                          {item.id}
-                        </strong>
-                      </td>
+                    return (
+                      <tr
+                        key={
+                          item.id
+                        }
+                      >
+                        <td>
+                          <strong>
+                            {
+                              item.id
+                            }
+                          </strong>
+                        </td>
 
-                      <td>
-                        {item.descricao}
-                      </td>
+                        <td>
+                          {
+                            item.descricao
+                          }
+                        </td>
 
-                      <td>
-                        {item.estoque_inicial}
-                      </td>
+                        <td>
+                          {
+                            estoqueInicial
+                          }
+                        </td>
 
-                      <td>
-                        <span className="badge badge-success">
-                          +{item.total_entradas || 0}
-                        </span>
-                      </td>
-
-                      <td>
-                        <span className="badge badge-danger">
-                          -{item.total_saidas || 0}
-                        </span>
-                      </td>
-
-                      <td>
-                        <strong>
-                          {estoqueAtual}
-                        </strong>
-                      </td>
-
-                      <td>
-                        {estoqueZerado ? (
-                          <span className="badge badge-danger">
-                            Sem estoque
-                          </span>
-                        ) : estoqueBaixo ? (
-                          <span className="badge badge-warning">
-                            Estoque baixo
-                          </span>
-                        ) : (
+                        <td>
                           <span className="badge badge-success">
-                            Normal
+                            +
+                            {
+                              totalEntradas
+                            }
                           </span>
-                        )}
-                      </td>
+                        </td>
 
-                      <td>
-                        <div className="action-buttons">
-                          <button
-                            className="icon-button"
-                            title="Editar"
-                            onClick={() =>
-                              abrirEdicao(item)
+                        <td>
+                          <span className="badge badge-danger">
+                            -
+                            {
+                              totalSaidas
                             }
-                          >
-                            ✏️
-                          </button>
+                          </span>
+                        </td>
 
-                          <button
-                            className="icon-button danger"
-                            title="Excluir"
-                            onClick={() =>
-                              excluirItem(item)
+                        <td>
+                          <strong>
+                            {
+                              estoqueAtual
                             }
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                          </strong>
+                        </td>
+
+                        <td>
+                          {estoqueZerado ? (
+                            <span className="badge badge-danger">
+                              Sem
+                              estoque
+                            </span>
+                          ) : estoqueBaixo ? (
+                            <span className="badge badge-warning">
+                              Estoque
+                              baixo
+                            </span>
+                          ) : (
+                            <span className="badge badge-success">
+                              Normal
+                            </span>
+                          )}
+                        </td>
+
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="icon-button"
+                              title="Editar"
+                              onClick={() =>
+                                abrirEdicao(
+                                  item
+                                )
+                              }
+                            >
+                              ✏️
+                            </button>
+
+                            <button
+                              className="icon-button danger"
+                              title="Excluir"
+                              onClick={() =>
+                                excluirItem(
+                                  item
+                                )
+                              }
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                )
               )}
             </tbody>
           </table>
@@ -557,7 +730,8 @@ function Insumos() {
 
         <div className="pagination">
           <span className="pagination-info">
-            {itensFiltrados.length === 0
+            {itensFiltrados.length ===
+            0
               ? "0 registros"
               : `Página ${paginaAtual} de ${totalPaginas}`}
           </span>
@@ -565,30 +739,52 @@ function Insumos() {
           <div className="pagination-buttons">
             <button
               className="pagination-button"
-              disabled={paginaAtual === 1}
+              disabled={
+                paginaAtual ===
+                1
+              }
               onClick={() =>
-                mudarPagina(paginaAtual - 1)
+                mudarPagina(
+                  paginaAtual -
+                    1
+                )
               }
             >
               ‹
             </button>
 
             {Array.from(
-              { length: totalPaginas },
-              (_, index) => index + 1
+              {
+                length:
+                  totalPaginas,
+              },
+              (
+                _,
+                index
+              ) =>
+                index + 1
             )
-              .filter((pagina) => {
-                if (totalPaginas <= 5)
-                  return true;
+              .filter(
+                (pagina) => {
+                  if (
+                    totalPaginas <=
+                    5
+                  ) {
+                    return true;
+                  }
 
-                return (
-                  pagina === 1 ||
-                  pagina === totalPaginas ||
-                  Math.abs(
-                    pagina - paginaAtual
-                  ) <= 1
-                );
-              })
+                  return (
+                    pagina ===
+                      1 ||
+                    pagina ===
+                      totalPaginas ||
+                    Math.abs(
+                      pagina -
+                        paginaAtual
+                    ) <= 1
+                  );
+                }
+              )
               .map(
                 (
                   pagina,
@@ -596,16 +792,27 @@ function Insumos() {
                   paginasVisiveis
                 ) => {
                   const anterior =
-                    paginasVisiveis[index - 1];
+                    paginasVisiveis[
+                      index -
+                        1
+                    ];
 
                   return (
-                    <span key={pagina}>
+                    <span
+                      key={
+                        pagina
+                      }
+                    >
                       {anterior &&
-                        pagina - anterior > 1 && (
+                        pagina -
+                          anterior >
+                          1 && (
                           <span
                             style={{
-                              margin: "0 4px",
-                              color: "#888",
+                              margin:
+                                "0 4px",
+                              color:
+                                "#888",
                             }}
                           >
                             ...
@@ -614,15 +821,20 @@ function Insumos() {
 
                       <button
                         className={`pagination-button ${
-                          paginaAtual === pagina
+                          paginaAtual ===
+                          pagina
                             ? "active"
                             : ""
                         }`}
                         onClick={() =>
-                          mudarPagina(pagina)
+                          mudarPagina(
+                            pagina
+                          )
                         }
                       >
-                        {pagina}
+                        {
+                          pagina
+                        }
                       </button>
                     </span>
                   );
@@ -632,10 +844,14 @@ function Insumos() {
             <button
               className="pagination-button"
               disabled={
-                paginaAtual === totalPaginas
+                paginaAtual ===
+                totalPaginas
               }
               onClick={() =>
-                mudarPagina(paginaAtual + 1)
+                mudarPagina(
+                  paginaAtual +
+                    1
+                )
               }
             >
               ›
@@ -647,7 +863,9 @@ function Insumos() {
       {modalAberto && (
         <div
           className="modal-overlay"
-          onMouseDown={(event) => {
+          onMouseDown={(
+            event
+          ) => {
             if (
               event.target ===
               event.currentTarget
@@ -666,7 +884,9 @@ function Insumos() {
 
               <button
                 className="modal-close"
-                onClick={fecharModal}
+                onClick={
+                  fecharModal
+                }
                 type="button"
               >
                 ×
@@ -674,7 +894,11 @@ function Insumos() {
             </div>
 
             <div className="modal-body">
-              <form onSubmit={salvarItem}>
+              <form
+                onSubmit={
+                  salvarItem
+                }
+              >
                 <div className="form-grid">
                   <div className="form-group">
                     <label className="form-label">
@@ -686,8 +910,12 @@ function Insumos() {
                       type="text"
                       className="form-control"
                       placeholder="Ex.: ITEM001"
-                      value={form.id}
-                      onChange={handleChange}
+                      value={
+                        form.id
+                      }
+                      onChange={
+                        handleChange
+                      }
                       disabled={Boolean(
                         itemEditando
                       )}
@@ -705,8 +933,12 @@ function Insumos() {
                       type="text"
                       className="form-control"
                       placeholder="Descrição do insumo"
-                      value={form.descricao}
-                      onChange={handleChange}
+                      value={
+                        form.descricao
+                      }
+                      onChange={
+                        handleChange
+                      }
                       required
                     />
                   </div>
@@ -725,7 +957,9 @@ function Insumos() {
                       value={
                         form.estoqueInicial
                       }
-                      onChange={handleChange}
+                      onChange={
+                        handleChange
+                      }
                       required
                     />
                   </div>
@@ -734,25 +968,35 @@ function Insumos() {
                 <div
                   className="alert alert-warning"
                   style={{
-                    marginTop: "18px",
+                    marginTop:
+                      "18px",
                   }}
                 >
-                  <span>💡</span>
+                  <span>
+                    💡
+                  </span>
 
                   <div>
                     <strong>
-                      Controle automático
+                      Controle
+                      automático
                     </strong>
 
                     <p
                       style={{
-                        marginTop: "4px",
+                        marginTop:
+                          "4px",
                       }}
                     >
-                      O estoque atual é calculado
-                      pelo banco com base no
-                      estoque inicial, entradas e
-                      saídas.
+                      O estoque
+                      atual é
+                      atualizado
+                      pelo banco
+                      através
+                      dos
+                      registros
+                      de entrada
+                      e saída.
                     </p>
                   </div>
                 </div>
@@ -761,7 +1005,9 @@ function Insumos() {
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    onClick={fecharModal}
+                    onClick={
+                      fecharModal
+                    }
                   >
                     Cancelar
                   </button>

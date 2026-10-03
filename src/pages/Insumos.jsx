@@ -3,6 +3,27 @@ import { supabase } from "../supabase.js";
 
 const ITENS_POR_PAGINA = 40;
 
+const INSUMOS_DESTAQUE = [
+  {
+    titulo: "Etq Bancada Branca",
+    descricao: "080X040",
+    busca: "Etq Bancada Branca (080X040)",
+    icone: "🏷️",
+  },
+  {
+    titulo: "Etq Bancada Color",
+    descricao: "080X040",
+    busca: "Etq Bancada Color (080X040)",
+    icone: "🏷️",
+  },
+  {
+    titulo: "Etq Gestão",
+    descricao: "100X150mm",
+    busca: "Etq Gestão (100X150mm)",
+    icone: "🏷️",
+  },
+];
+
 function Insumos() {
   const [itens, setItens] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +62,29 @@ function Insumos() {
     carregarInsumos();
   }, [carregarInsumos]);
 
+  /*
+   * CARDS DE DESTAQUE
+   *
+   * Os cards utilizam o estoque_atual que já é calculado
+   * pelo banco de dados.
+   */
+  const cardsInsumos = useMemo(() => {
+    return INSUMOS_DESTAQUE.map((insumo) => {
+      const itemEncontrado = itens.find(
+        (item) =>
+          String(item.descricao || "").trim().toLowerCase() ===
+          insumo.busca.trim().toLowerCase()
+      );
+
+      return {
+        ...insumo,
+        valor: itemEncontrado
+          ? Number(itemEncontrado.estoque_atual || 0)
+          : 0,
+      };
+    });
+  }, [itens]);
+
   const itensFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
 
@@ -64,16 +108,22 @@ function Insumos() {
 
   const itensPagina = useMemo(() => {
     const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
-    return itensFiltrados.slice(inicio, inicio + ITENS_POR_PAGINA);
+
+    return itensFiltrados.slice(
+      inicio,
+      inicio + ITENS_POR_PAGINA
+    );
   }, [itensFiltrados, paginaAtual]);
 
   const abrirNovoItem = () => {
     setItemEditando(null);
+
     setForm({
       id: "",
       descricao: "",
       estoqueInicial: "",
     });
+
     setModalAberto(true);
   };
 
@@ -135,11 +185,12 @@ function Insumos() {
         return;
       }
     } else {
-      const { data: existente, error: consultaError } = await supabase
-        .from("insumos")
-        .select("id")
-        .eq("id", id)
-        .maybeSingle();
+      const { data: existente, error: consultaError } =
+        await supabase
+          .from("insumos")
+          .select("id")
+          .eq("id", id)
+          .maybeSingle();
 
       if (consultaError) {
         console.error(consultaError);
@@ -152,26 +203,26 @@ function Insumos() {
         return;
       }
 
-      const { error } = await supabase.from("insumos").insert({
-  id,
-  descricao,
-  estoque_inicial: estoqueInicial,
-});
-
-if (error) {
-  console.error("Erro Supabase ao cadastrar insumo:", error);
-
-  alert(
-    `Erro ao cadastrar o insumo:\n\n${error.message || "Erro desconhecido"}`
-  );
-
-  return;
-}
-
+      const { error } = await supabase
+        .from("insumos")
+        .insert({
+          id,
+          descricao,
+          estoque_inicial: estoqueInicial,
+        });
 
       if (error) {
-        console.error(error);
-        alert("Erro ao cadastrar o insumo.");
+        console.error(
+          "Erro Supabase ao cadastrar insumo:",
+          error
+        );
+
+        alert(
+          `Erro ao cadastrar o insumo:\n\n${
+            error.message || "Erro desconhecido"
+          }`
+        );
+
         return;
       }
     }
@@ -194,9 +245,11 @@ if (error) {
 
     if (error) {
       console.error(error);
+
       alert(
         "Não foi possível excluir. Verifique se existem movimentações vinculadas a este insumo."
       );
+
       return;
     }
 
@@ -219,12 +272,64 @@ if (error) {
       <div className="page-header">
         <div>
           <h2>Insumos</h2>
-          <p>Cadastre e acompanhe os materiais disponíveis no estoque.</p>
+
+          <p>
+            Cadastre e acompanhe os materiais disponíveis no estoque.
+          </p>
         </div>
 
-        <button className="btn btn-primary" onClick={abrirNovoItem}>
+        <button
+          className="btn btn-primary"
+          onClick={abrirNovoItem}
+        >
           + Novo insumo
         </button>
+      </div>
+
+      {/* CARDS DOS INSUMOS DESTAQUE */}
+      <div className="stats-grid">
+        {cardsInsumos.map((item) => (
+          <div className="stat-card" key={item.busca}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+              }}
+            >
+              <div>
+                <div className="stat-label">
+                  {item.titulo}
+                </div>
+
+                <div className="stat-value">
+                  {loading
+                    ? "..."
+                    : item.valor.toLocaleString("pt-BR")}
+                </div>
+
+                <div className="stat-description">
+                  {item.descricao}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#fff8b8",
+                  borderRadius: "10px",
+                  fontSize: "18px",
+                }}
+              >
+                {item.icone}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="toolbar">
@@ -242,7 +347,12 @@ if (error) {
         </div>
 
         <div className="toolbar-right">
-          <span style={{ color: "#666", fontSize: "11px" }}>
+          <span
+            style={{
+              color: "#666",
+              fontSize: "11px",
+            }}
+          >
             {itensFiltrados.length} item(ns)
           </span>
         </div>
@@ -267,7 +377,13 @@ if (error) {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: "center", padding: "2rem" }}>
+                  <td
+                    colSpan="8"
+                    style={{
+                      textAlign: "center",
+                      padding: "2rem",
+                    }}
+                  >
                     Carregando insumos...
                   </td>
                 </tr>
@@ -275,12 +391,16 @@ if (error) {
                 <tr>
                   <td colSpan="8">
                     <div className="empty-state">
-                      <div className="empty-state-icon">📦</div>
+                      <div className="empty-state-icon">
+                        📦
+                      </div>
+
                       <h3>
                         {busca
                           ? "Nenhum item encontrado"
                           : "Nenhum insumo cadastrado"}
                       </h3>
+
                       <p>
                         {busca
                           ? "Tente outro termo de pesquisa."
@@ -291,12 +411,16 @@ if (error) {
                 </tr>
               ) : (
                 itensPagina.map((item) => {
-                  const estoqueAtual = Number(item.estoque_atual || 0);
+                  const estoqueAtual = Number(
+                    item.estoque_atual || 0
+                  );
 
                   const estoqueBaixo =
-                    estoqueAtual > 0 && estoqueAtual <= 10;
+                    estoqueAtual > 0 &&
+                    estoqueAtual <= 10;
 
-                  const estoqueZerado = estoqueAtual <= 0;
+                  const estoqueZerado =
+                    estoqueAtual <= 0;
 
                   return (
                     <tr key={item.id}>
@@ -345,7 +469,9 @@ if (error) {
                           <button
                             className="icon-button"
                             title="Editar"
-                            onClick={() => abrirEdicao(item)}
+                            onClick={() =>
+                              abrirEdicao(item)
+                            }
                           >
                             ✏️
                           </button>
@@ -353,7 +479,9 @@ if (error) {
                           <button
                             className="icon-button danger"
                             title="Excluir"
-                            onClick={() => excluirItem(item)}
+                            onClick={() =>
+                              excluirItem(item)
+                            }
                           >
                             🗑️
                           </button>
@@ -378,7 +506,9 @@ if (error) {
             <button
               className="pagination-button"
               disabled={paginaAtual === 1}
-              onClick={() => mudarPagina(paginaAtual - 1)}
+              onClick={() =>
+                mudarPagina(paginaAtual - 1)
+              }
             >
               ‹
             </button>
@@ -393,36 +523,59 @@ if (error) {
                 return (
                   pagina === 1 ||
                   pagina === totalPaginas ||
-                  Math.abs(pagina - paginaAtual) <= 1
+                  Math.abs(
+                    pagina - paginaAtual
+                  ) <= 1
                 );
               })
-              .map((pagina, index, paginasVisiveis) => {
-                const anterior = paginasVisiveis[index - 1];
+              .map(
+                (
+                  pagina,
+                  index,
+                  paginasVisiveis
+                ) => {
+                  const anterior =
+                    paginasVisiveis[index - 1];
 
-                return (
-                  <span key={pagina}>
-                    {anterior && pagina - anterior > 1 && (
-                      <span style={{ margin: "0 4px", color: "#888" }}>
-                        ...
-                      </span>
-                    )}
+                  return (
+                    <span key={pagina}>
+                      {anterior &&
+                        pagina - anterior > 1 && (
+                          <span
+                            style={{
+                              margin: "0 4px",
+                              color: "#888",
+                            }}
+                          >
+                            ...
+                          </span>
+                        )}
 
-                    <button
-                      className={`pagination-button ${
-                        paginaAtual === pagina ? "active" : ""
-                      }`}
-                      onClick={() => mudarPagina(pagina)}
-                    >
-                      {pagina}
-                    </button>
-                  </span>
-                );
-              })}
+                      <button
+                        className={`pagination-button ${
+                          paginaAtual === pagina
+                            ? "active"
+                            : ""
+                        }`}
+                        onClick={() =>
+                          mudarPagina(pagina)
+                        }
+                      >
+                        {pagina}
+                      </button>
+                    </span>
+                  );
+                }
+              )}
 
             <button
               className="pagination-button"
-              disabled={paginaAtual === totalPaginas}
-              onClick={() => mudarPagina(paginaAtual + 1)}
+              disabled={
+                paginaAtual === totalPaginas
+              }
+              onClick={() =>
+                mudarPagina(paginaAtual + 1)
+              }
             >
               ›
             </button>
@@ -434,14 +587,21 @@ if (error) {
         <div
           className="modal-overlay"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
               fecharModal();
             }
           }}
         >
           <div className="modal">
             <div className="modal-header">
-              <h3>{itemEditando ? "Editar insumo" : "Novo insumo"}</h3>
+              <h3>
+                {itemEditando
+                  ? "Editar insumo"
+                  : "Novo insumo"}
+              </h3>
 
               <button
                 className="modal-close"
@@ -456,7 +616,9 @@ if (error) {
               <form onSubmit={salvarItem}>
                 <div className="form-grid">
                   <div className="form-group">
-                    <label className="form-label">ID do item *</label>
+                    <label className="form-label">
+                      ID do item *
+                    </label>
 
                     <input
                       name="id"
@@ -465,13 +627,17 @@ if (error) {
                       placeholder="Ex.: ITEM001"
                       value={form.id}
                       onChange={handleChange}
-                      disabled={Boolean(itemEditando)}
+                      disabled={Boolean(
+                        itemEditando
+                      )}
                       required
                     />
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Descrição *</label>
+                    <label className="form-label">
+                      Descrição *
+                    </label>
 
                     <input
                       name="descricao"
@@ -495,7 +661,9 @@ if (error) {
                       min="0"
                       step="1"
                       className="form-control"
-                      value={form.estoqueInicial}
+                      value={
+                        form.estoqueInicial
+                      }
                       onChange={handleChange}
                       required
                     />
@@ -504,16 +672,26 @@ if (error) {
 
                 <div
                   className="alert alert-warning"
-                  style={{ marginTop: "18px" }}
+                  style={{
+                    marginTop: "18px",
+                  }}
                 >
                   <span>💡</span>
 
                   <div>
-                    <strong>Controle automático</strong>
+                    <strong>
+                      Controle automático
+                    </strong>
 
-                    <p style={{ marginTop: "4px" }}>
-                      O estoque atual é calculado pelo banco com base no
-                      estoque inicial, entradas e saídas.
+                    <p
+                      style={{
+                        marginTop: "4px",
+                      }}
+                    >
+                      O estoque atual é calculado
+                      pelo banco com base no
+                      estoque inicial, entradas e
+                      saídas.
                     </p>
                   </div>
                 </div>
@@ -527,7 +705,10 @@ if (error) {
                     Cancelar
                   </button>
 
-                  <button type="submit" className="btn btn-primary">
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                  >
                     {itemEditando
                       ? "Salvar alterações"
                       : "Cadastrar insumo"}

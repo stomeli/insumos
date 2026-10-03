@@ -191,41 +191,23 @@ if (
    * 007 = Etq Gestão
    */
   const cardsInsumos = useMemo(() => {
-    return INSUMOS_DESTAQUE.map(
-      (insumo) => {
-        const itemEncontrado =
-          itens.find(
-            (item) =>
-              String(item.id)
-                .trim()
-                .toLowerCase() ===
-              String(insumo.id)
-                .trim()
-                .toLowerCase()
-          );
-
-        const estoque =
-          calcularEstoque(
-            itemEncontrado
-          );
-
-        console.log(
-          `CARD ${insumo.id}:`,
-          {
-            itemEncontrado,
-            estoqueAtualBanco:
-              itemEncontrado?.estoque_atual,
-            estoque,
-          }
-        );
-
-        return {
-          ...insumo,
-          valor: estoque.estoqueAtual,
-        };
-      }
+  return INSUMOS_DESTAQUE.map((insumo) => {
+    const itemEncontrado = itens.find(
+      (item) =>
+        String(item.id).trim() ===
+        String(insumo.id).trim()
     );
-  }, [itens, calcularEstoque]);
+
+    const valor = itemEncontrado
+      ? Number(itemEncontrado.estoque_atual ?? 0)
+      : 0;
+
+    return {
+      ...insumo,
+      valor,
+    };
+  });
+}, [itens]);
 
   /*
    * FILTRO

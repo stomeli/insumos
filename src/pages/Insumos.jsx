@@ -93,11 +93,14 @@ function Insumos() {
   /*
    * CALCULA O ESTOQUE DE UM ITEM
    *
-   * Fórmula:
+   * O campo estoque_atual é o valor mantido
+   * pelo Supabase pelas movimentações de entrada
+   * e saída.
    *
-   * estoque inicial
-   * + entradas
-   * - saídas
+   * Caso estoque_atual não esteja disponível,
+   * usamos o cálculo de segurança:
+   *
+   * estoque inicial + entradas - saídas
    */
   const calcularEstoque = useCallback(
     (item) => {
@@ -115,17 +118,47 @@ function Insumos() {
       );
 
       const entradas = Number(
-        item.total_entradas ??
-          item.entradas ??
+        item.entradas ??
+          item.total_entradas ??
           0
       );
 
       const saidas = Number(
-        item.total_saidas ??
-          item.saidas ??
+        item.saidas ??
+          item.total_saidas ??
           0
       );
 
+      /*
+       * PRIMEIRA OPÇÃO:
+       * usa diretamente o estoque atual
+       * calculado/mantido pelo Supabase.
+       */
+      const estoqueAtualBanco =
+        Number(item.estoque_atual);
+
+      if (
+        Number.isFinite(
+          estoqueAtualBanco
+        )
+      ) {
+        return {
+          estoqueInicial,
+          entradas,
+          saidas,
+          estoqueAtual:
+            Math.max(
+              0,
+              estoqueAtualBanco
+            ),
+        };
+      }
+
+      /*
+       * FALLBACK:
+       * caso estoque_atual seja nulo,
+       * calcula manualmente.
+       */
       const estoqueAtual =
         estoqueInicial +
         entradas -
@@ -135,10 +168,11 @@ function Insumos() {
         estoqueInicial,
         entradas,
         saidas,
-        estoqueAtual: Math.max(
-          0,
-          estoqueAtual
-        ),
+        estoqueAtual:
+          Math.max(
+            0,
+            estoqueAtual
+          ),
       };
     },
     []
@@ -176,6 +210,8 @@ function Insumos() {
           `CARD ${insumo.id}:`,
           {
             itemEncontrado,
+            estoqueAtualBanco:
+              itemEncontrado?.estoque_atual,
             estoque,
           }
         );

@@ -65,21 +65,46 @@ function Insumos() {
   /*
    * CARDS DE DESTAQUE
    *
-   * Os cards utilizam o estoque_atual que já é calculado
-   * pelo banco de dados.
+   * O valor é calculado utilizando os dados
+   * já registrados no Supabase:
+   *
+   * estoque inicial + entradas - saídas
    */
- const cardsInsumos = useMemo(() => {
-  return INSUMOS_DESTAQUE.map((insumo) => {
-    const itemEncontrado = itens.find(
-      (item) => String(item.id) === String(insumo.id)
-    );
+  const cardsInsumos = useMemo(() => {
+    return INSUMOS_DESTAQUE.map((insumo) => {
+      const itemEncontrado = itens.find(
+        (item) =>
+          String(item.id).trim() === String(insumo.id).trim()
+      );
 
-    return {
-      ...insumo,
-      valor: Number(itemEncontrado?.estoque_atual || 0),
-    };
-  });
-}, [itens]);
+      if (!itemEncontrado) {
+        return {
+          ...insumo,
+          valor: 0,
+        };
+      }
+
+      const estoqueInicial = Number(
+        itemEncontrado.estoque_inicial || 0
+      );
+
+      const totalEntradas = Number(
+        itemEncontrado.total_entradas || 0
+      );
+
+      const totalSaidas = Number(
+        itemEncontrado.total_saidas || 0
+      );
+
+      const estoqueAtual =
+        estoqueInicial + totalEntradas - totalSaidas;
+
+      return {
+        ...insumo,
+        valor: Math.max(0, estoqueAtual),
+      };
+    });
+  }, [itens]);
 
   const itensFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
@@ -87,7 +112,9 @@ function Insumos() {
     if (!termo) return itens;
 
     return itens.filter((item) =>
-      `${item.id} ${item.descricao}`.toLowerCase().includes(termo)
+      `${item.id} ${item.descricao}`
+        .toLowerCase()
+        .includes(termo)
     );
   }, [itens, busca]);
 
@@ -103,7 +130,8 @@ function Insumos() {
   }, [paginaAtual, totalPaginas]);
 
   const itensPagina = useMemo(() => {
-    const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+    const inicio =
+      (paginaAtual - 1) * ITENS_POR_PAGINA;
 
     return itensFiltrados.slice(
       inicio,
@@ -129,7 +157,9 @@ function Insumos() {
     setForm({
       id: item.id,
       descricao: item.descricao,
-      estoqueInicial: String(item.estoque_inicial ?? 0),
+      estoqueInicial: String(
+        item.estoque_inicial ?? 0
+      ),
     });
 
     setModalAberto(true);
@@ -161,7 +191,10 @@ function Insumos() {
       return;
     }
 
-    if (!Number.isFinite(estoqueInicial) || estoqueInicial < 0) {
+    if (
+      !Number.isFinite(estoqueInicial) ||
+      estoqueInicial < 0
+    ) {
       alert("Informe um estoque inicial válido.");
       return;
     }
@@ -181,12 +214,14 @@ function Insumos() {
         return;
       }
     } else {
-      const { data: existente, error: consultaError } =
-        await supabase
-          .from("insumos")
-          .select("id")
-          .eq("id", id)
-          .maybeSingle();
+      const {
+        data: existente,
+        error: consultaError,
+      } = await supabase
+        .from("insumos")
+        .select("id")
+        .eq("id", id)
+        .maybeSingle();
 
       if (consultaError) {
         console.error(consultaError);
@@ -253,7 +288,10 @@ function Insumos() {
   };
 
   const mudarPagina = (pagina) => {
-    if (pagina >= 1 && pagina <= totalPaginas) {
+    if (
+      pagina >= 1 &&
+      pagina <= totalPaginas
+    ) {
       setPaginaAtual(pagina);
     }
   };
@@ -285,7 +323,10 @@ function Insumos() {
       {/* CARDS DOS INSUMOS DESTAQUE */}
       <div className="stats-grid">
         {cardsInsumos.map((item) => (
-          <div className="stat-card" key={item.busca}>
+          <div
+            className="stat-card"
+            key={item.id}
+          >
             <div
               style={{
                 display: "flex",
@@ -331,7 +372,9 @@ function Insumos() {
       <div className="toolbar">
         <div className="toolbar-left">
           <div className="search-box">
-            <span className="search-icon">🔎</span>
+            <span className="search-icon">
+              🔎
+            </span>
 
             <input
               type="text"
@@ -407,9 +450,22 @@ function Insumos() {
                 </tr>
               ) : (
                 itensPagina.map((item) => {
-                  const estoqueAtual = Number(
-                    item.estoque_atual || 0
+                  const estoqueInicial = Number(
+                    item.estoque_inicial || 0
                   );
+
+                  const totalEntradas = Number(
+                    item.total_entradas || 0
+                  );
+
+                  const totalSaidas = Number(
+                    item.total_saidas || 0
+                  );
+
+                  const estoqueAtual =
+                    estoqueInicial +
+                    totalEntradas -
+                    totalSaidas;
 
                   const estoqueBaixo =
                     estoqueAtual > 0 &&
@@ -421,12 +477,18 @@ function Insumos() {
                   return (
                     <tr key={item.id}>
                       <td>
-                        <strong>{item.id}</strong>
+                        <strong>
+                          {item.id}
+                        </strong>
                       </td>
 
-                      <td>{item.descricao}</td>
+                      <td>
+                        {item.descricao}
+                      </td>
 
-                      <td>{item.estoque_inicial}</td>
+                      <td>
+                        {item.estoque_inicial}
+                      </td>
 
                       <td>
                         <span className="badge badge-success">
@@ -441,7 +503,9 @@ function Insumos() {
                       </td>
 
                       <td>
-                        <strong>{estoqueAtual}</strong>
+                        <strong>
+                          {estoqueAtual}
+                        </strong>
                       </td>
 
                       <td>
@@ -514,7 +578,8 @@ function Insumos() {
               (_, index) => index + 1
             )
               .filter((pagina) => {
-                if (totalPaginas <= 5) return true;
+                if (totalPaginas <= 5)
+                  return true;
 
                 return (
                   pagina === 1 ||
